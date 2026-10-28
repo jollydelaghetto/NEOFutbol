@@ -6,14 +6,15 @@ const Fixture = preload("res://game/scripts/data/match_fixture.gd")
 const MatchResultModel = preload("res://game/scripts/data/match_result.gd")
 const Rules = preload("res://game/scripts/data/competition_rules.gd")
 const REQUIRED_SELECTION = ["season_id", "competition_id", "stage_id", "group_id"]
+const SUPPORTED_TIEBREAKERS = ["goal_difference", "goals_for", "wins"]
 
 ## Calcula una tabla de liga para la selección exacta indicada.
 ## selection requiere season_id y competition_id como String no vacío, además
 ## de stage_id y group_id como String no vacío o null.
-## Solo se admite competition_format.kind == "round_robin". La fase 1 ordena
-## deportivamente solo por puntos: los empates comparten posición, club_id se
-## usa únicamente para una presentación determinista y data.provisional indica
-## que quedan desempates oficiales sin resolver.
+## Solo se admite competition_format.kind == "round_robin". Los puntos son el
+## criterio principal y rules.tiebreakers puede contener, en orden de prioridad,
+## goal_difference, goals_for y wins. club_id se usa únicamente para presentar
+## de forma determinista los empates deportivos que continúan sin resolver.
 func calculate(clubs: Array[Club], fixtures: Array[Fixture],
 		results: Array[MatchResultModel], rules: Rules, selection: Dictionary) -> Dictionary:
 	var selection_error = _validate_selection(selection)
@@ -128,11 +129,11 @@ func calculate(clubs: Array[Club], fixtures: Array[Fixture],
 		row.erase("source_index")
 		row.goal_difference = row.goals_for - row.goals_against
 		rows.append(row)
-	rows.sort_custom(_row_before)
+	_sort_rows(rows, rules.tiebreakers)
 	var unresolved_ties: Array = []
 	var current_tie: Array[String] = []
 	for index in rows.size():
-		if index == 0 or rows[index].points != rows[index - 1].points:
+		if index == 0 or not _sporting_equal(rows[index], rows[index - 1], rules.tiebreakers):
 			if current_tie.size() > 1:
 				unresolved_ties.append(current_tie)
 			current_tie = [rows[index].club_id]
@@ -148,7 +149,7 @@ func calculate(clubs: Array[Club], fixtures: Array[Fixture],
 			"rows": rows,
 			"provisional": not unresolved_ties.is_empty(),
 			"unresolved_ties": unresolved_ties,
-			"tiebreakers_applied": [],
+			"tiebreakers_applied": rules.tiebreakers.duplicate(),
 		},
 		"errors": [],
 	}
@@ -184,11 +185,47 @@ func _validate_rules(rules: Rules, selection: Dictionary) -> Variant:
 		if typeof(rules.get(field)) != TYPE_INT:
 			return _field_failure("invalid_rules",
 				"Las reglas de puntuación deben ser enteros explícitos.", field)
+	var tiebreaker_error = _validate_tiebreakers(rules.tiebreakers)
+	if tiebreaker_error != null:
+		return tiebreaker_error
 	if not rules.competition_format is Dictionary \
 			or rules.competition_format.get("kind") != "round_robin":
 		return _field_failure("unsupported_format",
 			"Solo se admite competition_format.kind igual a round_robin.",
 			"competition_format")
+	return null
+
+
+func _validate_tiebreakers(tiebreakers: Variant) -> Variant:
+	if tiebreakers == null:
+		return _field_failure("invalid_tiebreakers",
+			"Los criterios de desempate deben estar documentados mediante un array.",
+			"tiebreakers")
+	if not tiebreakers is Array:
+		return _field_failure("invalid_tiebreakers",
+			"Los criterios de desempate deben formar un array.", "tiebreakers")
+	var seen: Dictionary = {}
+	for index in tiebreakers.size():
+		var criterion = tiebreakers[index]
+		if not criterion is String:
+			var invalid = _field_failure("invalid_tiebreaker",
+				"Cada criterio de desempate debe ser una cadena.", "tiebreakers")
+			invalid.errors[0]["index"] = index
+			return invalid
+		if criterion not in SUPPORTED_TIEBREAKERS:
+			var unknown = _field_failure("unknown_tiebreaker",
+				"El criterio de desempate no está admitido.", "tiebreakers")
+			unknown.errors[0]["index"] = index
+			unknown.errors[0]["criterion"] = criterion
+			return unknown
+		if seen.has(criterion):
+			var duplicate = _field_failure("duplicate_tiebreaker",
+				"El criterio de desempate está duplicado.", "tiebreakers")
+			duplicate.errors[0]["index"] = index
+			duplicate.errors[0]["first_index"] = seen[criterion]
+			duplicate.errors[0]["criterion"] = criterion
+			return duplicate
+		seen[criterion] = index
 	return null
 
 
@@ -241,10 +278,34 @@ func _apply_result(fixture: Fixture, match_result: MatchResultModel,
 		away.points += points_draw
 
 
-func _row_before(left: Dictionary, right: Dictionary) -> bool:
+## Inserción determinista: el comparador incluye club_id como último criterio
+## visual, de modo que no depende de la estabilidad de Array.sort_custom().
+func _sort_rows(rows: Array[Dictionary], tiebreakers: Array) -> void:
+	for index in range(1, rows.size()):
+		var row = rows[index]
+		var position = index
+		while position > 0 and _row_before(row, rows[position - 1], tiebreakers):
+			rows[position] = rows[position - 1]
+			position -= 1
+		rows[position] = row
+
+
+func _row_before(left: Dictionary, right: Dictionary, tiebreakers: Array) -> bool:
 	if left.points != right.points:
 		return left.points > right.points
+	for criterion in tiebreakers:
+		if left[criterion] != right[criterion]:
+			return left[criterion] > right[criterion]
 	return left.club_id < right.club_id
+
+
+func _sporting_equal(left: Dictionary, right: Dictionary, tiebreakers: Array) -> bool:
+	if left.points != right.points:
+		return false
+	for criterion in tiebreakers:
+		if left[criterion] != right[criterion]:
+			return false
+	return true
 
 
 func _field_failure(code: String, message: String, field: String) -> Dictionary:

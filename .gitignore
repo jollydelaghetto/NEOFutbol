@@ -30,3 +30,6 @@ private-packs/
 .env
 .env.*
 !.env.example
+
+# Compilaciones y ejecutables generados
+/build/

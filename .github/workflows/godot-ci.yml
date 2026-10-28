@@ -1,0 +1,47 @@
+name: Godot CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    name: Importar proyecto con Godot 4.7.2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Obtener el repositorio
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Instalar Godot 4.7.2 estable
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/Godot_v4.7.2-stable_linux.x86_64.zip"
+          curl --fail --location --retry 3 \
+            --output "$archive" \
+            'https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip'
+          echo "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4  $archive" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/godot/bin"
+          unzip -q "$archive" -d "$RUNNER_TEMP/godot"
+          install -m 755 "$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64" "$RUNNER_TEMP/godot/bin/godot"
+          echo "$RUNNER_TEMP/godot/bin" >> "$GITHUB_PATH"
+
+      - name: Comprobar la versión exacta
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(godot --version)"
+          echo "$version"
+          [[ "$version" == 4.7.2.stable.* ]]
+
+      - name: Importar recursos sin interfaz gráfica
+        run: godot --headless --path . --import

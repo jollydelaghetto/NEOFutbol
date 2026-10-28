@@ -1,0 +1,32 @@
+
+# Godot 4
+.godot/
+
+# Archivos temporales
+*.tmp
+*.log
+*.bak
+*~
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editores
+.vscode/
+.idea/
+*.swp
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Contenido privado de NEOFutbol
+private-packs/
+*.private.neopack
+
+# Variables y credenciales locales
+.env
+.env.*
+!.env.example

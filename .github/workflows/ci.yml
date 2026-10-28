@@ -1,0 +1,85 @@
+name: GDScript CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check whitespace against the relevant base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+        run: |
+          case "$EVENT_NAME" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BASE" ;;
+            workflow_dispatch) base="$(git rev-parse HEAD^ 2>/dev/null || true)" ;;
+          esac
+          # Initial pushes and root commits have no previous tree.
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+            base="$(git hash-object -t tree /dev/null)"
+          fi
+          git diff --check "$base" HEAD
+
+      - name: Install verified Godot 4.7.2 standard Linux x86_64
+        run: |
+          archive="$RUNNER_TEMP/Godot_v4.7.2-stable_linux.x86_64.zip"
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 \
+            --output "$archive" \
+            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          # SHA-256 verified against the official release asset's digest.
+          echo "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4  $archive" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/godot"
+          unzip -q "$archive" -d "$RUNNER_TEMP/godot"
+          mv "$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64" "$RUNNER_TEMP/godot/godot"
+          chmod +x "$RUNNER_TEMP/godot/godot"
+          echo "$RUNNER_TEMP/godot" >> "$GITHUB_PATH"
+          version="$("$RUNNER_TEMP/godot/godot" --version)"
+          echo "$version"
+          [[ "$version" == 4.7.2.stable.* && "$version" != *mono* ]]
+
+      - name: Import project and check parser syntax
+        run: |
+          godot --headless --path . --import --log-file "$RUNNER_TEMP/import.log" 2>&1 | tee "$RUNNER_TEMP/import-output.log"
+          if grep -Eq '^(SCRIPT ERROR:|ERROR:)' "$RUNNER_TEMP/import-output.log"; then exit 1; fi
+          for model in season_manifest competition_rules club_season player_season; do
+            godot --headless --path . --check-only \
+              --script "game/scripts/infrastructure/${model}_parser.gd" \
+              --log-file "$RUNNER_TEMP/${model}-syntax.log" 2>&1 | tee "$RUNNER_TEMP/syntax-output.log"
+            if grep -Eq '^(SCRIPT ERROR:|ERROR:)' "$RUNNER_TEMP/syntax-output.log"; then exit 1; fi
+          done
+
+      - name: Run each GDScript suite
+        run: |
+          for model in season_manifest competition_rules club_season player_season; do
+            echo "::group::${model}"
+            script="tests/unit/test_${model}_parser.gd"
+            test -f "$script"
+            output="$RUNNER_TEMP/${model}-output.log"
+            # Bash uses -e and pipefail: a nonzero suite exit fails even after PASS.
+            godot --headless --path . --script "$script" \
+              --log-file "$RUNNER_TEMP/${model}-tests.log" 2>&1 | tee "$output"
+            if grep -Eq '^(SCRIPT ERROR:|ERROR:|FAIL:)' "$output"; then exit 1; fi
+            tail -n 1 "$output" | grep -Eq '^PASS: [1-9][0-9]* comprobaciones$'
+            echo "::endgroup::"
+          done

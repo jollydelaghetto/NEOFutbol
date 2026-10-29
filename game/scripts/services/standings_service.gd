@@ -21,11 +21,9 @@ const SUPPORTED_TIEBREAKERS = GENERAL_TIEBREAKERS + DIRECT_TIEBREAKERS
 ## criterio principal y rules.tiebreakers puede contener, en orden de prioridad,
 ## goal_difference, goals_for, wins y los tres criterios head_to_head. Cada
 ## criterio se aplica una sola vez y solo a los subgrupos que sigan empatados.
-## Los criterios directos requieren que el calendario suministrado contenga el
-## mismo número positivo de encuentros para cada pareja del grupo y que todos
-## estén finalizados. Una cobertura sin localías recíprocas y equilibradas puede
-## ordenar la tabla, pero no certifica que la serie esté completa. Esos casos se
-## describen en data.pending_tiebreakers y conservan la tabla provisional.
+## Los criterios directos se certifican con competition_format.legs y
+## competition_format.head_to_head_policy. La ausencia de esos datos conserva
+## un orden informativo y provisional; nunca se infieren desde el calendario.
 ## club_id se usa únicamente para presentar de forma determinista los empates
 ## deportivos que continúan sin resolver.
 func calculate(clubs: Array[Club], fixtures: Array[Fixture],
@@ -217,6 +215,22 @@ func _validate_rules(rules: Rules, selection: Dictionary) -> Variant:
 		return _field_failure("unsupported_format",
 			"Solo se admite competition_format.kind igual a round_robin.",
 			"competition_format")
+	var legs = rules.competition_format.get("legs", null)
+	if legs != null and (typeof(legs) != TYPE_INT or legs not in [1, 2]):
+		return _field_failure("invalid_legs",
+			"competition_format.legs debe ser 1, 2 o null.",
+			"competition_format.legs")
+	var policy = rules.competition_format.get("head_to_head_policy", null)
+	if policy != null and not policy is String:
+		return _field_failure("invalid_head_to_head_policy",
+			"competition_format.head_to_head_policy debe ser una cadena o null.",
+			"competition_format.head_to_head_policy")
+	if policy != null and policy != "single_pass":
+		var unsupported = _field_failure("unsupported_head_to_head_policy",
+			"La política de desempate directo no está admitida.",
+			"competition_format.head_to_head_policy")
+		unsupported.errors[0]["policy"] = policy
+		return unsupported
 	return null
 
 
@@ -322,18 +336,14 @@ func _rank_rows(rows: Array[Dictionary], tiebreakers: Array,
 					next_groups.append(subgroup)
 				continue
 			var direct = _direct_values(group, fixture_entries, results_by_fixture, rules)
-			if not direct.ready:
-				var diagnostic: Dictionary = direct.diagnostic
+			for direct_diagnostic in direct.diagnostics:
+				var diagnostic: Dictionary = direct_diagnostic
 				diagnostic["criterion"] = criterion
 				diagnostic["criterion_index"] = criterion_index
 				pending_tiebreakers.append(diagnostic)
+			if not direct.ready:
 				next_groups.append(group)
 				continue
-			if direct.has("diagnostic"):
-				var diagnostic: Dictionary = direct.diagnostic
-				diagnostic["criterion"] = criterion
-				diagnostic["criterion_index"] = criterion_index
-				pending_tiebreakers.append(diagnostic)
 			var value_name = criterion.trim_prefix("head_to_head_")
 			for subgroup in _split_by_value(group, value_name, direct.values):
 				next_groups.append(subgroup)
@@ -398,8 +408,8 @@ func _sort_group_by_club_id(group: Array) -> void:
 		group[position] = row
 
 
-## Calcula una mini-liga para el grupo actual. La cobertura uniforme comprueba
-## el calendario suministrado; no se crean encuentros que no figuren en él.
+## Calcula una mini-liga para el grupo actual. legs define el número exacto de
+## encuentros esperados por pareja; solo legs == 2 exige ambas localías.
 func _direct_values(group: Array, fixture_entries: Array[Dictionary],
 		results_by_fixture: Dictionary, rules: Rules) -> Dictionary:
 	var club_ids: Array[String] = []
@@ -432,18 +442,36 @@ func _direct_values(group: Array, fixture_entries: Array[Dictionary],
 			pair_directions[key].second_home += 1
 		direct_entries.append(entry)
 
-	var meeting_counts: Array[int] = []
-	for count in pair_counts.values():
-		meeting_counts.append(count)
-	meeting_counts.sort()
-	if meeting_counts.is_empty() or meeting_counts[0] == 0 \
-			or meeting_counts[0] != meeting_counts[-1]:
+	var expected_legs = rules.competition_format.get("legs", null)
+	var policy = rules.competition_format.get("head_to_head_policy", null)
+	var observed_meetings = _observed_meetings(club_ids, pair_counts, pair_directions)
+	var calendar_matches_rule = true
+	if expected_legs == null:
+		var meeting_counts: Array[int] = []
+		for count in pair_counts.values():
+			meeting_counts.append(count)
+		meeting_counts.sort()
+		calendar_matches_rule = not meeting_counts.is_empty() \
+			and meeting_counts[0] > 0 and meeting_counts[0] == meeting_counts[-1]
+	else:
+		for meeting in observed_meetings:
+			if meeting.total != expected_legs:
+				calendar_matches_rule = false
+				break
+			if expected_legs == 2 \
+					and (meeting.first_home != 1 or meeting.second_home != 1):
+				calendar_matches_rule = false
+				break
+	if not calendar_matches_rule:
+		var incomplete = _pending_diagnostic(
+			"incomplete_calendar",
+			"El calendario no coincide con el número de vueltas declarado.",
+			club_ids, [])
+		incomplete["expected_legs"] = expected_legs
+		incomplete["observed_meetings"] = observed_meetings
 		return {
 			"ready": false,
-			"diagnostic": _pending_diagnostic(
-				"incomplete_calendar",
-				"El calendario no contiene una mini-liga uniforme y completa para el grupo.",
-				club_ids, []),
+			"diagnostics": [incomplete],
 		}
 
 	var pending_result_fixture_ids: Array[String] = []
@@ -468,11 +496,13 @@ func _direct_values(group: Array, fixture_entries: Array[Dictionary],
 			reason,
 			"La mini-liga conserva partidos programados sin resultado final.",
 			club_ids, fixture_ids)
+		diagnostic["expected_legs"] = expected_legs
+		diagnostic["observed_meetings"] = observed_meetings
 		diagnostic["pending_result_fixture_ids"] = pending_result_fixture_ids
 		diagnostic["missing_result_fixture_ids"] = missing_result_fixture_ids
 		return {
 			"ready": false,
-			"diagnostic": diagnostic,
+			"diagnostics": [diagnostic],
 		}
 
 	for entry in direct_entries:
@@ -480,22 +510,40 @@ func _direct_values(group: Array, fixture_entries: Array[Dictionary],
 		var match_result: MatchResultModel = results_by_fixture[fixture.fixture_id]
 		_apply_direct_result(fixture, match_result, values,
 			rules.points_win, rules.points_draw, rules.points_loss)
-	var calendar_certified = true
-	for directions in pair_directions.values():
-		if directions.first_home == 0 or directions.first_home != directions.second_home:
-			calendar_certified = false
-			break
-	if not calendar_certified:
-		return {
-			"ready": true,
-			"values": values,
-			"diagnostic": _pending_diagnostic(
-				"calendar_completeness_unverified",
-				"El calendario permite calcular la mini-liga, pero no certificar "
-					+ "una serie recíproca completa.",
-				club_ids, []),
-		}
-	return {"ready": true, "values": values}
+	var diagnostics: Array[Dictionary] = []
+	if expected_legs == null:
+		var unknown_legs = _pending_diagnostic(
+			"unknown_legs",
+			"El número de vueltas no está documentado para certificar la mini-liga.",
+			club_ids, [])
+		unknown_legs["expected_legs"] = null
+		unknown_legs["observed_meetings"] = observed_meetings
+		diagnostics.append(unknown_legs)
+	if policy == null:
+		var unknown_policy = _pending_diagnostic(
+			"unknown_head_to_head_policy",
+			"La política de desempate directo no está documentada.",
+			club_ids, [])
+		unknown_policy["expected_legs"] = expected_legs
+		unknown_policy["observed_meetings"] = observed_meetings
+		diagnostics.append(unknown_policy)
+	return {"ready": true, "values": values, "diagnostics": diagnostics}
+
+
+func _observed_meetings(club_ids: Array[String], pair_counts: Dictionary,
+		pair_directions: Dictionary) -> Array[Dictionary]:
+	var observed: Array[Dictionary] = []
+	for left_index in club_ids.size():
+		for right_index in range(left_index + 1, club_ids.size()):
+			var key = _pair_key(club_ids[left_index], club_ids[right_index])
+			observed.append({
+				"first_club_id": club_ids[left_index],
+				"second_club_id": club_ids[right_index],
+				"total": pair_counts[key],
+				"first_home": pair_directions[key].first_home,
+				"second_home": pair_directions[key].second_home,
+			})
+	return observed
 
 
 func _apply_direct_result(fixture: Fixture, match_result: MatchResultModel,

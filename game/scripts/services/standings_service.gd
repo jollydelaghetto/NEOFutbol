@@ -6,15 +6,28 @@ const Fixture = preload("res://game/scripts/data/match_fixture.gd")
 const MatchResultModel = preload("res://game/scripts/data/match_result.gd")
 const Rules = preload("res://game/scripts/data/competition_rules.gd")
 const REQUIRED_SELECTION = ["season_id", "competition_id", "stage_id", "group_id"]
-const SUPPORTED_TIEBREAKERS = ["goal_difference", "goals_for", "wins"]
+const GENERAL_TIEBREAKERS = ["goal_difference", "goals_for", "wins"]
+const DIRECT_TIEBREAKERS = [
+	"head_to_head_points",
+	"head_to_head_goal_difference",
+	"head_to_head_goals_for",
+]
+const SUPPORTED_TIEBREAKERS = GENERAL_TIEBREAKERS + DIRECT_TIEBREAKERS
 
 ## Calcula una tabla de liga para la selección exacta indicada.
 ## selection requiere season_id y competition_id como String no vacío, además
 ## de stage_id y group_id como String no vacío o null.
 ## Solo se admite competition_format.kind == "round_robin". Los puntos son el
 ## criterio principal y rules.tiebreakers puede contener, en orden de prioridad,
-## goal_difference, goals_for y wins. club_id se usa únicamente para presentar
-## de forma determinista los empates deportivos que continúan sin resolver.
+## goal_difference, goals_for, wins y los tres criterios head_to_head. Cada
+## criterio se aplica una sola vez y solo a los subgrupos que sigan empatados.
+## Los criterios directos requieren que el calendario suministrado contenga el
+## mismo número positivo de encuentros para cada pareja del grupo y que todos
+## estén finalizados. Una cobertura sin localías recíprocas y equilibradas puede
+## ordenar la tabla, pero no certifica que la serie esté completa. Esos casos se
+## describen en data.pending_tiebreakers y conservan la tabla provisional.
+## club_id se usa únicamente para presentar de forma determinista los empates
+## deportivos que continúan sin resolver.
 func calculate(clubs: Array[Club], fixtures: Array[Fixture],
 		results: Array[MatchResultModel], rules: Rules, selection: Dictionary) -> Dictionary:
 	var selection_error = _validate_selection(selection)
@@ -44,8 +57,12 @@ func calculate(clubs: Array[Club], fixtures: Array[Fixture],
 
 	var fixtures_by_season: Dictionary = {}
 	var selected_fixtures: Dictionary = {}
+	var selected_fixture_entries: Array[Dictionary] = []
 	for index in fixtures.size():
 		var fixture = fixtures[index]
+		if fixture.fixture_id.strip_edges().is_empty():
+			return _fixture_failure("invalid_fixture",
+				"El partido debe tener un identificador no vacío.", index, fixture)
 		if not fixtures_by_season.has(fixture.season_id):
 			fixtures_by_season[fixture.season_id] = {}
 		var season_fixtures: Dictionary = fixtures_by_season[fixture.season_id]
@@ -61,9 +78,12 @@ func calculate(clubs: Array[Club], fixtures: Array[Fixture],
 					and fixture.home_club_id == fixture.away_club_id:
 				return _fixture_failure("self_match",
 					"Un club no puede enfrentarse a sí mismo.", index, fixture)
-			selected_fixtures[fixture.fixture_id] = {"fixture": fixture, "index": index}
+			var entry = {"fixture": fixture, "index": index}
+			selected_fixtures[fixture.fixture_id] = entry
+			selected_fixture_entries.append(entry)
 
 	var seen_results: Dictionary = {}
+	var results_by_fixture: Dictionary = {}
 	var completed: Array[Dictionary] = []
 	for index in results.size():
 		var match_result = results[index]
@@ -91,6 +111,7 @@ func calculate(clubs: Array[Club], fixtures: Array[Fixture],
 		if match_result.status not in [MatchResultModel.Status.PENDING, MatchResultModel.Status.FINAL]:
 			return _result_failure("invalid_status",
 				"El estado del resultado no está admitido.", index, match_result)
+		results_by_fixture[match_result.fixture_id] = match_result
 		if match_result.status == MatchResultModel.Status.PENDING:
 			if match_result.home_goals != null or match_result.away_goals != null:
 				return _result_failure("pending_with_score",
@@ -129,27 +150,30 @@ func calculate(clubs: Array[Club], fixtures: Array[Fixture],
 		row.erase("source_index")
 		row.goal_difference = row.goals_for - row.goals_against
 		rows.append(row)
-	_sort_rows(rows, rules.tiebreakers)
+	var ranking = _rank_rows(rows, rules.tiebreakers, selected_fixture_entries,
+		results_by_fixture, rules)
+	rows = ranking.rows
 	var unresolved_ties: Array = []
-	var current_tie: Array[String] = []
-	for index in rows.size():
-		if index == 0 or not _sporting_equal(rows[index], rows[index - 1], rules.tiebreakers):
-			if current_tie.size() > 1:
-				unresolved_ties.append(current_tie)
-			current_tie = [rows[index].club_id]
-			rows[index]["position"] = index + 1
-		else:
-			current_tie.append(rows[index].club_id)
-			rows[index]["position"] = rows[index - 1].position
-	if current_tie.size() > 1:
-		unresolved_ties.append(current_tie)
+	var row_index = 0
+	for group in ranking.groups:
+		var position = row_index + 1
+		var tied_clubs: Array[String] = []
+		for row in group:
+			row["position"] = position
+			rows[row_index] = row
+			row_index += 1
+			tied_clubs.append(row.club_id)
+		if tied_clubs.size() > 1:
+			unresolved_ties.append(tied_clubs)
 	return {
 		"ok": true,
 		"data": {
 			"rows": rows,
-			"provisional": not unresolved_ties.is_empty(),
+			"provisional": not unresolved_ties.is_empty()
+				or not ranking.pending_tiebreakers.is_empty(),
 			"unresolved_ties": unresolved_ties,
 			"tiebreakers_applied": rules.tiebreakers.duplicate(),
+			"pending_tiebreakers": ranking.pending_tiebreakers,
 		},
 		"errors": [],
 	}
@@ -278,34 +302,238 @@ func _apply_result(fixture: Fixture, match_result: MatchResultModel,
 		away.points += points_draw
 
 
-## Inserción determinista: el comparador incluye club_id como último criterio
-## visual, de modo que no depende de la estabilidad de Array.sort_custom().
-func _sort_rows(rows: Array[Dictionary], tiebreakers: Array) -> void:
-	for index in range(1, rows.size()):
-		var row = rows[index]
+## Aplica puntos y los criterios configurados como una única pasada ordenada.
+## Los grupos que produce cada criterio son la única entrada del siguiente; no
+## se reinicia la secuencia al formar un subgrupo.
+func _rank_rows(rows: Array[Dictionary], tiebreakers: Array,
+		fixture_entries: Array[Dictionary], results_by_fixture: Dictionary,
+		rules: Rules) -> Dictionary:
+	var groups = _split_by_value(rows, "points", {})
+	var pending_tiebreakers: Array[Dictionary] = []
+	for criterion_index in tiebreakers.size():
+		var criterion: String = tiebreakers[criterion_index]
+		var next_groups: Array = []
+		for group in groups:
+			if group.size() < 2:
+				next_groups.append(group)
+				continue
+			if criterion in GENERAL_TIEBREAKERS:
+				for subgroup in _split_by_value(group, criterion, {}):
+					next_groups.append(subgroup)
+				continue
+			var direct = _direct_values(group, fixture_entries, results_by_fixture, rules)
+			if not direct.ready:
+				var diagnostic: Dictionary = direct.diagnostic
+				diagnostic["criterion"] = criterion
+				diagnostic["criterion_index"] = criterion_index
+				pending_tiebreakers.append(diagnostic)
+				next_groups.append(group)
+				continue
+			if direct.has("diagnostic"):
+				var diagnostic: Dictionary = direct.diagnostic
+				diagnostic["criterion"] = criterion
+				diagnostic["criterion_index"] = criterion_index
+				pending_tiebreakers.append(diagnostic)
+			var value_name = criterion.trim_prefix("head_to_head_")
+			for subgroup in _split_by_value(group, value_name, direct.values):
+				next_groups.append(subgroup)
+		groups = next_groups
+
+	var ranked_rows: Array[Dictionary] = []
+	for group in groups:
+		_sort_group_by_club_id(group)
+		for row in group:
+			ranked_rows.append(row)
+	return {
+		"rows": ranked_rows,
+		"groups": groups,
+		"pending_tiebreakers": pending_tiebreakers,
+	}
+
+
+## Divide un grupo por un valor descendente. La inserción y club_id hacen el
+## resultado total y determinista sin depender de la estabilidad del sort.
+func _split_by_value(rows: Array, value_name: String, values: Dictionary) -> Array:
+	var ordered: Array = rows.duplicate()
+	for index in range(1, ordered.size()):
+		var row = ordered[index]
 		var position = index
-		while position > 0 and _row_before(row, rows[position - 1], tiebreakers):
-			rows[position] = rows[position - 1]
+		while position > 0 and _value_before(row, ordered[position - 1],
+				value_name, values):
+			ordered[position] = ordered[position - 1]
 			position -= 1
-		rows[position] = row
+		ordered[position] = row
+	var groups: Array = []
+	for row in ordered:
+		var value = _ranking_value(row, value_name, values)
+		if groups.is_empty() or _ranking_value(groups[-1][0], value_name, values) != value:
+			groups.append([row])
+		else:
+			groups[-1].append(row)
+	return groups
 
 
-func _row_before(left: Dictionary, right: Dictionary, tiebreakers: Array) -> bool:
-	if left.points != right.points:
-		return left.points > right.points
-	for criterion in tiebreakers:
-		if left[criterion] != right[criterion]:
-			return left[criterion] > right[criterion]
+func _value_before(left: Dictionary, right: Dictionary,
+		value_name: String, values: Dictionary) -> bool:
+	var left_value = _ranking_value(left, value_name, values)
+	var right_value = _ranking_value(right, value_name, values)
+	if left_value != right_value:
+		return left_value > right_value
 	return left.club_id < right.club_id
 
 
-func _sporting_equal(left: Dictionary, right: Dictionary, tiebreakers: Array) -> bool:
-	if left.points != right.points:
-		return false
-	for criterion in tiebreakers:
-		if left[criterion] != right[criterion]:
-			return false
-	return true
+func _ranking_value(row: Dictionary, value_name: String, values: Dictionary) -> int:
+	if values.is_empty():
+		return row[value_name]
+	return values[row.club_id][value_name]
+
+
+func _sort_group_by_club_id(group: Array) -> void:
+	for index in range(1, group.size()):
+		var row = group[index]
+		var position = index
+		while position > 0 and row.club_id < group[position - 1].club_id:
+			group[position] = group[position - 1]
+			position -= 1
+		group[position] = row
+
+
+## Calcula una mini-liga para el grupo actual. La cobertura uniforme comprueba
+## el calendario suministrado; no se crean encuentros que no figuren en él.
+func _direct_values(group: Array, fixture_entries: Array[Dictionary],
+		results_by_fixture: Dictionary, rules: Rules) -> Dictionary:
+	var club_ids: Array[String] = []
+	var member: Dictionary = {}
+	var values: Dictionary = {}
+	for row in group:
+		club_ids.append(row.club_id)
+		member[row.club_id] = true
+		values[row.club_id] = {"points": 0, "goal_difference": 0, "goals_for": 0}
+	club_ids.sort()
+
+	var pair_counts: Dictionary = {}
+	var pair_directions: Dictionary = {}
+	for left_index in club_ids.size():
+		for right_index in range(left_index + 1, club_ids.size()):
+			var key = _pair_key(club_ids[left_index], club_ids[right_index])
+			pair_counts[key] = 0
+			pair_directions[key] = {"first_home": 0, "second_home": 0}
+	var direct_entries: Array[Dictionary] = []
+	for entry in fixture_entries:
+		var fixture: Fixture = entry.fixture
+		if fixture.home_club_id == null or fixture.away_club_id == null \
+				or not member.has(fixture.home_club_id) or not member.has(fixture.away_club_id):
+			continue
+		var key = _pair_key(fixture.home_club_id, fixture.away_club_id)
+		pair_counts[key] += 1
+		if fixture.home_club_id < fixture.away_club_id:
+			pair_directions[key].first_home += 1
+		else:
+			pair_directions[key].second_home += 1
+		direct_entries.append(entry)
+
+	var meeting_counts: Array[int] = []
+	for count in pair_counts.values():
+		meeting_counts.append(count)
+	meeting_counts.sort()
+	if meeting_counts.is_empty() or meeting_counts[0] == 0 \
+			or meeting_counts[0] != meeting_counts[-1]:
+		return {
+			"ready": false,
+			"diagnostic": _pending_diagnostic(
+				"incomplete_calendar",
+				"El calendario no contiene una mini-liga uniforme y completa para el grupo.",
+				club_ids, []),
+		}
+
+	var pending_result_fixture_ids: Array[String] = []
+	var missing_result_fixture_ids: Array[String] = []
+	for entry in direct_entries:
+		var fixture: Fixture = entry.fixture
+		if not results_by_fixture.has(fixture.fixture_id):
+			missing_result_fixture_ids.append(fixture.fixture_id)
+		elif results_by_fixture[fixture.fixture_id].status != MatchResultModel.Status.FINAL:
+			pending_result_fixture_ids.append(fixture.fixture_id)
+	if not pending_result_fixture_ids.is_empty() or not missing_result_fixture_ids.is_empty():
+		pending_result_fixture_ids.sort()
+		missing_result_fixture_ids.sort()
+		var reason = "incomplete_results"
+		if missing_result_fixture_ids.is_empty():
+			reason = "pending_results"
+		elif pending_result_fixture_ids.is_empty():
+			reason = "missing_results"
+		var fixture_ids = pending_result_fixture_ids + missing_result_fixture_ids
+		fixture_ids.sort()
+		var diagnostic = _pending_diagnostic(
+			reason,
+			"La mini-liga conserva partidos programados sin resultado final.",
+			club_ids, fixture_ids)
+		diagnostic["pending_result_fixture_ids"] = pending_result_fixture_ids
+		diagnostic["missing_result_fixture_ids"] = missing_result_fixture_ids
+		return {
+			"ready": false,
+			"diagnostic": diagnostic,
+		}
+
+	for entry in direct_entries:
+		var fixture: Fixture = entry.fixture
+		var match_result: MatchResultModel = results_by_fixture[fixture.fixture_id]
+		_apply_direct_result(fixture, match_result, values,
+			rules.points_win, rules.points_draw, rules.points_loss)
+	var calendar_certified = true
+	for directions in pair_directions.values():
+		if directions.first_home == 0 or directions.first_home != directions.second_home:
+			calendar_certified = false
+			break
+	if not calendar_certified:
+		return {
+			"ready": true,
+			"values": values,
+			"diagnostic": _pending_diagnostic(
+				"calendar_completeness_unverified",
+				"El calendario permite calcular la mini-liga, pero no certificar "
+					+ "una serie recíproca completa.",
+				club_ids, []),
+		}
+	return {"ready": true, "values": values}
+
+
+func _apply_direct_result(fixture: Fixture, match_result: MatchResultModel,
+		values: Dictionary, points_win: int, points_draw: int, points_loss: int) -> void:
+	var home: Dictionary = values[fixture.home_club_id]
+	var away: Dictionary = values[fixture.away_club_id]
+	home.goals_for += match_result.home_goals
+	away.goals_for += match_result.away_goals
+	home.goal_difference += match_result.home_goals - match_result.away_goals
+	away.goal_difference += match_result.away_goals - match_result.home_goals
+	if match_result.home_goals > match_result.away_goals:
+		home.points += points_win
+		away.points += points_loss
+	elif match_result.home_goals < match_result.away_goals:
+		away.points += points_win
+		home.points += points_loss
+	else:
+		home.points += points_draw
+		away.points += points_draw
+
+
+func _pair_key(left: String, right: String) -> String:
+	if right < left:
+		var swap = left
+		left = right
+		right = swap
+	return "%d:%s|%d:%s" % [left.length(), left, right.length(), right]
+
+
+func _pending_diagnostic(reason: String, message: String,
+		club_ids: Array[String], fixture_ids: Array[String]) -> Dictionary:
+	return {
+		"code": "pending_head_to_head_tiebreaker",
+		"message": message,
+		"reason": reason,
+		"club_ids": club_ids.duplicate(),
+		"fixture_ids": fixture_ids.duplicate(),
+	}
 
 
 func _field_failure(code: String, message: String, field: String) -> Dictionary:

@@ -92,6 +92,23 @@ func get_results() -> Dictionary:
 	}
 
 
+## Devuelve la identidad pública de la sesión mediante copias defensivas.
+## data contiene selection y fixtures para que los consumidores puedan
+## comprobar que sus vistas representan exactamente la sesión inicializada.
+func get_session_context() -> Dictionary:
+	var ready = _require_initialized()
+	if ready != null:
+		return ready
+	return {
+		"ok": true,
+		"data": {
+			"selection": _selection.duplicate(true),
+			"fixtures": _copy_fixtures(_fixtures),
+		},
+		"errors": [],
+	}
+
+
 ## Devuelve data.audit_entries como una copia profunda del historial completo.
 func get_audit_entries() -> Dictionary:
 	var ready = _require_initialized()

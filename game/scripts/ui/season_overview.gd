@@ -65,6 +65,19 @@ func configure(controller: Controller, fixtures: Array[Fixture], selection: Dict
 			return _show_failure(
 				"invalid_fixture", "El partido en el índice %d es nulo." % index
 			)
+	var context = controller.get_session_context()
+	if not context.ok:
+		return _show_result(context)
+	if not _same_selection(selection, context.data.selection):
+		return _show_failure(
+			"controller_selection_mismatch",
+			"La selección solicitada no coincide con la sesión del controlador."
+		)
+	if not _same_calendar(fixtures, context.data.fixtures):
+		return _show_failure(
+			"controller_calendar_mismatch",
+			"El calendario proporcionado no coincide con la sesión del controlador."
+		)
 	var standings = controller.get_standings()
 	if not standings.ok:
 		return _show_result(standings)
@@ -275,6 +288,51 @@ func _validate_metadata(metadata: Dictionary) -> Variant:
 		if metadata.has(field) and not metadata[field] is String:
 			return _failure("invalid_display_metadata", "%s debe ser una cadena." % field)
 	return null
+
+
+func _same_selection(left: Dictionary, right: Dictionary) -> bool:
+	for field in SELECTION_FIELDS:
+		if not right.has(field) or left[field] != right[field]:
+			return false
+	return true
+
+
+func _same_calendar(left: Array[Fixture], right: Array[Fixture]) -> bool:
+	if left.size() != right.size():
+		return false
+	var left_by_id = _fixtures_by_id(left)
+	var right_by_id = _fixtures_by_id(right)
+	if left_by_id.size() != left.size() or right_by_id.size() != right.size():
+		return false
+	if left_by_id.size() != right_by_id.size():
+		return false
+	for fixture_id in left_by_id:
+		if not right_by_id.has(fixture_id) \
+				or not _same_fixture(left_by_id[fixture_id], right_by_id[fixture_id]):
+			return false
+	return true
+
+
+func _fixtures_by_id(fixtures: Array[Fixture]) -> Dictionary:
+	var by_id: Dictionary = {}
+	for fixture in fixtures:
+		if by_id.has(fixture.fixture_id):
+			return {}
+		by_id[fixture.fixture_id] = fixture
+	return by_id
+
+
+func _same_fixture(left: Fixture, right: Fixture) -> bool:
+	return left.fixture_id == right.fixture_id \
+		and left.season_id == right.season_id \
+		and left.competition_id == right.competition_id \
+		and left.stage_id == right.stage_id \
+		and left.group_id == right.group_id \
+		and left.home_club_id == right.home_club_id \
+		and left.away_club_id == right.away_club_id \
+		and left.round_number == right.round_number \
+		and left.scheduled_date == right.scheduled_date \
+		and left.metadata == right.metadata
 
 
 func _copy_fixtures(source: Array[Fixture]) -> Array[Fixture]:

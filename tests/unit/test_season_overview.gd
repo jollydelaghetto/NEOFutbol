@@ -102,8 +102,12 @@ func _test_configuration_and_rendering() -> void:
 	extended.append(_fixture("other_comp", "club_a", "club_b", 8, null, "other", "regular", null))
 	extended.append(_fixture("other_stage", "club_a", "club_b", 9, null, "league", "playoff", null))
 	extended.append(_fixture("other_group", "club_a", "club_b", 10, null, "league", "regular", "x"))
+	var extended_controller = Controller.new()
+	_check(extended_controller.initialize(_clubs(), extended,
+		_rules(["goal_difference", "goals_for", "wins"]), _selection()).ok,
+		"inicializa una sesión con partidos de otros ámbitos")
 	var filtered_view = await _new_view()
-	var filtered = filtered_view.configure(controller, extended, _selection(), {})
+	var filtered = filtered_view.configure(extended_controller, extended, _selection(), {})
 	_check(filtered.ok and filtered.data.round_numbers == [1, 2, 3],
 		"excluye otras competiciones, fases y grupos")
 	_check(_tree_rows(filtered_view.standings_tree)[0][1].begins_with("club_"),
@@ -136,6 +140,25 @@ func _test_updates_and_errors() -> void:
 	var view = await _new_view()
 	_check(view.configure(controller, fixtures, _selection(), {}).ok,
 		"configura la vista de actualización")
+	var valid_view_snapshot = _view_sporting_snapshot(view)
+	for field in ["season_id", "competition_id", "stage_id", "group_id"]:
+		var incompatible = _selection()
+		incompatible[field] = "different_%s" % field
+		var rejected = view.configure(controller, fixtures, incompatible, {})
+		_check(not rejected.ok and rejected.errors[0].code
+			== "controller_selection_mismatch",
+			"rechaza una selección incompatible en %s" % field)
+		_check(_view_sporting_snapshot(view) == valid_view_snapshot,
+			"una selección incompatible en %s no sustituye la vista válida" % field)
+	var incompatible_fixtures = _copy_fixtures(fixtures)
+	incompatible_fixtures[0].scheduled_date = "2099-12-31"
+	var rejected_calendar = view.configure(
+		controller, incompatible_fixtures, _selection(), {}
+	)
+	_check(not rejected_calendar.ok and rejected_calendar.errors[0].code
+		== "controller_calendar_mismatch", "rechaza un calendario incompatible")
+	_check(_view_sporting_snapshot(view) == valid_view_snapshot,
+		"un calendario incompatible no sustituye la vista válida")
 	var result = _result("fixture_01", 2, 1)
 	_check(controller.apply_round([result], 1).ok, "aplica un resultado parcial mediante el controlador")
 	var refreshed = view.refresh_view()
@@ -354,6 +377,18 @@ func _result_snapshot(results: Array) -> Array:
 		snapshot.append([result.fixture_id, result.season_id, result.home_goals,
 			result.away_goals, result.status])
 	return snapshot
+
+
+func _view_sporting_snapshot(view) -> Dictionary:
+	return {
+		"controller": view._controller,
+		"selection": view._selection.duplicate(true),
+		"fixtures": _fixture_snapshot(view._fixtures),
+		"metadata": view._display_metadata.duplicate(true),
+		"selected_round": view._selected_round,
+		"rows": _tree_rows(view.standings_tree),
+		"matches": _match_texts(view),
+	}
 
 
 func _check(condition: bool, description: String) -> void:

@@ -31,6 +31,8 @@ var _selection: Dictionary = {}
 var _display_metadata: Dictionary = {}
 var _round_numbers: Array[int] = []
 var _selected_round: Variant = null
+var _has_selected_calendar_option := false
+var _has_unassigned_fixtures := false
 
 
 func _ready() -> void:
@@ -90,6 +92,7 @@ func configure(controller: Controller, fixtures: Array[Fixture], selection: Dict
 	_selection = selection.duplicate(true)
 	_display_metadata = display_metadata.duplicate(true)
 	_selected_round = null
+	_has_selected_calendar_option = false
 	_update_header()
 	return refresh_view()
 
@@ -112,15 +115,32 @@ func refresh_view() -> Dictionary:
 	_round_numbers = Calendar.new().get_round_numbers(
 		_fixtures, _selection.season_id, filters
 	)
-	if _selected_round == null or not _round_numbers.has(_selected_round):
-		_selected_round = _round_numbers[0] if not _round_numbers.is_empty() else null
+	var scoped_fixtures = Calendar.new().get_fixtures(
+		_fixtures, _selection.season_id, filters, Calendar.Order.FIXTURE_ID
+	)
+	_has_unassigned_fixtures = scoped_fixtures.any(
+		func(fixture: Fixture): return fixture.round_number == null
+	)
+	if not _selected_calendar_option_exists():
+		if not _round_numbers.is_empty():
+			_selected_round = _round_numbers[0]
+			_has_selected_calendar_option = true
+		elif _has_unassigned_fixtures:
+			_selected_round = null
+			_has_selected_calendar_option = true
+		else:
+			_selected_round = null
+			_has_selected_calendar_option = false
 	_rebuild_round_selector()
 	var match_count = _render_selected_round(result_query.data.results)
 	return {
 		"ok": true,
 		"data": {
 			"selected_round": _selected_round,
+			"selected_without_round": _has_selected_calendar_option \
+				and _selected_round == null,
 			"round_numbers": _round_numbers.duplicate(),
+			"has_unassigned_fixtures": _has_unassigned_fixtures,
 			"standings_row_count": standings.data.rows.size(),
 			"match_count": match_count,
 			"provisional": standings.data.provisional,
@@ -163,10 +183,17 @@ func _rebuild_round_selector() -> void:
 	var selected_index = -1
 	for index in _round_numbers.size():
 		var round_number = _round_numbers[index]
-		round_selector.add_item("Jornada %d" % round_number, round_number)
-		if round_number == _selected_round:
+		round_selector.add_item("Jornada %d" % round_number)
+		round_selector.set_item_metadata(index, round_number)
+		if _has_selected_calendar_option and round_number == _selected_round:
 			selected_index = index
-	round_selector.disabled = _round_numbers.is_empty()
+	if _has_unassigned_fixtures:
+		var unassigned_index = round_selector.item_count
+		round_selector.add_item("Sin jornada")
+		round_selector.set_item_metadata(unassigned_index, null)
+		if _has_selected_calendar_option and _selected_round == null:
+			selected_index = unassigned_index
+	round_selector.disabled = round_selector.item_count == 0
 	if selected_index >= 0:
 		round_selector.select(selected_index)
 
@@ -175,16 +202,24 @@ func _render_selected_round(results: Array) -> int:
 	for child in match_list.get_children():
 		match_list.remove_child(child)
 		child.queue_free()
-	if _selected_round == null:
+	if not _has_selected_calendar_option:
 		_add_calendar_message("No hay jornadas disponibles para esta selección.")
 		return 0
 	var results_by_fixture: Dictionary = {}
 	for match_result in results:
 		results_by_fixture[match_result.fixture_id] = match_result
-	var fixtures = Calendar.new().get_round_fixtures(
-		_fixtures, _selection.season_id, _selected_round,
-		_calendar_filters(), Calendar.Order.FIXTURE_ID
-	)
+	var fixtures: Array[Fixture] = []
+	if _selected_round == null:
+		for fixture in Calendar.new().get_fixtures(
+				_fixtures, _selection.season_id, _calendar_filters(),
+				Calendar.Order.FIXTURE_ID):
+			if fixture.round_number == null:
+				fixtures.append(fixture)
+	else:
+		fixtures = Calendar.new().get_round_fixtures(
+			_fixtures, _selection.season_id, _selected_round,
+			_calendar_filters(), Calendar.Order.FIXTURE_ID
+		)
 	for fixture in fixtures:
 		var panel = PanelContainer.new()
 		panel.name = "Match_%s" % fixture.fixture_id.validate_node_name()
@@ -219,15 +254,24 @@ func _add_calendar_message(message: String) -> void:
 
 
 func _on_round_selected(index: int) -> void:
-	if index < 0 or index >= _round_numbers.size():
+	if index < 0 or index >= round_selector.item_count:
 		return
-	_selected_round = _round_numbers[index]
+	_selected_round = round_selector.get_item_metadata(index)
+	_has_selected_calendar_option = true
 	if _controller != null:
 		var result_query = _controller.get_results()
 		if result_query.ok:
 			_render_selected_round(result_query.data.results)
 		else:
 			_show_result(result_query)
+
+
+func _selected_calendar_option_exists() -> bool:
+	if not _has_selected_calendar_option:
+		return false
+	if _selected_round == null:
+		return _has_unassigned_fixtures
+	return _round_numbers.has(_selected_round)
 
 
 func _calendar_filters() -> Dictionary:

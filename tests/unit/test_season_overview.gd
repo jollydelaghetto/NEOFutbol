@@ -2,6 +2,7 @@ extends SceneTree
 
 const Scene = preload("res://game/scenes/season_overview.tscn")
 const Controller = preload("res://game/scripts/services/season_controller.gd")
+const Persistence = preload("res://game/scripts/services/sporting_state_persistence_service.gd")
 const Club = preload("res://game/scripts/data/club_season.gd")
 const Fixture = preload("res://game/scripts/data/match_fixture.gd")
 const Result = preload("res://game/scripts/data/match_result.gd")
@@ -19,6 +20,7 @@ func _run() -> void:
 	await process_frame
 	await _test_scene_and_demo()
 	await _test_configuration_and_rendering()
+	await _test_unassigned_fixtures()
 	await _test_updates_and_errors()
 	_finish()
 
@@ -219,6 +221,111 @@ func _test_updates_and_errors() -> void:
 	await process_frame
 
 
+func _test_unassigned_fixtures() -> void:
+	var clubs = _clubs()
+	var rules = _rules(["goal_difference", "goals_for", "wins"])
+	var unassigned_only: Array[Fixture] = [
+		_fixture("unassigned_b", "club_c", "club_d", null),
+		_fixture("unassigned_a", "club_a", "club_b", null, "2099-02-01"),
+	]
+	var only_controller = Controller.new()
+	_check(only_controller.initialize(clubs, unassigned_only, rules, _selection()).ok,
+		"inicializa un calendario exclusivamente sin jornada")
+	var only_view = await _new_view()
+	var only_configured = only_view.configure(
+		only_controller, unassigned_only, _selection(), {}
+	)
+	_check(only_configured.ok and only_configured.data.selected_without_round,
+		"selecciona los partidos sin jornada cuando son la única opción")
+	_check(only_view.round_selector.item_count == 1
+		and only_view.round_selector.get_item_text(0) == "Sin jornada"
+		and only_view.round_selector.get_item_metadata(0) == null
+		and not only_view.round_selector.disabled,
+		"mantiene habilitada la opción Sin jornada con metadatos null")
+	_check(_match_fixture_ids(only_view) == ["unassigned_a", "unassigned_b"],
+		"ordena por fixture_id un calendario sin jornadas numéricas")
+
+	var mixed: Array[Fixture] = [
+		_fixture("round_fixture", "club_a", "club_c", 2),
+		_fixture("unassigned_b", "club_c", "club_d", null),
+		_fixture("unassigned_a", "club_a", "club_b", null, "2099-02-01"),
+		_fixture("other_comp_unassigned", "club_a", "club_b", null,
+			null, "cup", "regular", null),
+		_fixture("other_stage_unassigned", "club_a", "club_b", null,
+			null, "league", "playoff", null),
+		_fixture("other_group_unassigned", "club_a", "club_b", null,
+			null, "league", "regular", "other"),
+	]
+	var mixed_snapshot = _fixture_snapshot(mixed)
+	var mixed_controller = Controller.new()
+	_check(mixed_controller.initialize(clubs, mixed, rules, _selection()).ok,
+		"inicializa un calendario mixto")
+	var state_path = "user://neofutbol/sporting_state/season_overview_unassigned.json"
+	_remove_state_files(state_path)
+	var pending_result = Result.new()
+	pending_result.fixture_id = "unassigned_b"
+	pending_result.season_id = "season_a"
+	pending_result.status = Result.Status.PENDING
+	var stored_results: Array[Result] = [
+		_result("unassigned_a", 3, 1), pending_result,
+	]
+	var empty_audit: Array[Dictionary] = []
+	var saved = Persistence.new().save_state(
+		state_path, clubs, mixed, stored_results, empty_audit, rules, _selection()
+	)
+	_check(saved.ok and mixed_controller.load_state(state_path).ok,
+		"carga públicamente un resultado final sin jornada")
+	_remove_state_files(state_path)
+	var controller_before = _controller_snapshot(mixed_controller)
+	var mixed_view = await _new_view()
+	var mixed_configured = mixed_view.configure(
+		mixed_controller, mixed, _selection(), {}
+	)
+	_check(mixed_configured.ok and mixed_configured.data.round_numbers == [2]
+		and mixed_configured.data.has_unassigned_fixtures,
+		"descubre jornadas numéricas y partidos sin jornada")
+	_check(mixed_view.round_selector.item_count == 2
+		and mixed_view.round_selector.get_item_text(0) == "Jornada 2"
+		and mixed_view.round_selector.get_item_text(1) == "Sin jornada",
+		"ordena las jornadas numéricas antes de Sin jornada")
+	_check(_match_fixture_ids(mixed_view) == ["round_fixture"],
+		"el calendario mixto comienza en la jornada numérica")
+	var standings_before = _tree_rows(mixed_view.standings_tree)
+	mixed_view.round_selector.select(1)
+	mixed_view.round_selector.item_selected.emit(1)
+	_check(mixed_view._selected_round == null
+		and mixed_view._has_selected_calendar_option,
+		"cambia desde una jornada numérica a Sin jornada")
+	_check(_match_fixture_ids(mixed_view) == ["unassigned_a", "unassigned_b"],
+		"Sin jornada aplica ámbito exacto y orden determinista")
+	var unassigned_text = "\n".join(_match_texts(mixed_view))
+	_check(unassigned_text.contains("3 – 1") and unassigned_text.contains("Pendiente"),
+		"muestra resultados finalizados y pendientes sin jornada")
+	_check(unassigned_text.contains("2099-02-01")
+		and unassigned_text.contains("Fecha por determinar"),
+		"muestra fechas conocidas y desconocidas sin jornada")
+	_check(not unassigned_text.contains("0 – 0"),
+		"no inventa marcadores para partidos sin jornada")
+	_check(_tree_rows(mixed_view.standings_tree) == standings_before,
+		"cambiar la opción de calendario conserva la clasificación")
+	var refreshed = mixed_view.refresh_view()
+	_check(refreshed.ok and refreshed.data.selected_without_round
+		and mixed_view.round_selector.selected == 1,
+		"refresh_view conserva Sin jornada")
+	mixed_view.round_selector.select(0)
+	mixed_view.round_selector.item_selected.emit(0)
+	_check(mixed_view._selected_round == 2
+		and _match_fixture_ids(mixed_view) == ["round_fixture"],
+		"permite regresar a una jornada numérica")
+	_check(_fixture_snapshot(mixed) == mixed_snapshot
+		and _controller_snapshot(mixed_controller) == controller_before,
+		"consultar partidos sin jornada no muta entradas ni controlador")
+
+	only_view.queue_free()
+	mixed_view.queue_free()
+	await process_frame
+
+
 func _new_view():
 	var view = Scene.instantiate()
 	view.auto_demo = false
@@ -249,7 +356,7 @@ func _fixtures() -> Array[Fixture]:
 	]
 
 
-func _fixture(id: String, home: String, away: String, round_number: int,
+func _fixture(id: String, home: String, away: String, round_number: Variant,
 		date: Variant = null, competition: Variant = "league",
 		stage: Variant = "regular", group: Variant = null) -> Fixture:
 	var fixture = Fixture.new()
@@ -386,9 +493,17 @@ func _view_sporting_snapshot(view) -> Dictionary:
 		"fixtures": _fixture_snapshot(view._fixtures),
 		"metadata": view._display_metadata.duplicate(true),
 		"selected_round": view._selected_round,
+		"has_selected_calendar_option": view._has_selected_calendar_option,
+		"has_unassigned_fixtures": view._has_unassigned_fixtures,
 		"rows": _tree_rows(view.standings_tree),
 		"matches": _match_texts(view),
 	}
+
+
+func _remove_state_files(path: String) -> void:
+	for candidate in [path, path + ".bak", path + ".tmp", path + ".bak.tmp"]:
+		if FileAccess.file_exists(candidate):
+			DirAccess.remove_absolute(candidate)
 
 
 func _check(condition: bool, description: String) -> void:

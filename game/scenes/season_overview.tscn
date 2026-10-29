@@ -1,0 +1,195 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/ui/season_overview.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBackground"]
+bg_color = Color(0.027, 0.055, 0.102, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleHeader"]
+bg_color = Color(0.055, 0.118, 0.196, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.078, 0.72, 0.73, 0.65)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 16.0
+content_margin_top = 12.0
+content_margin_right = 16.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="StyleDiagnostics"]
+bg_color = Color(0.12, 0.1, 0.035, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.94, 0.65, 0.16, 0.8)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+
+[node name="SeasonOverview" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+custom_minimum_size = Vector2(760, 520)
+script = ExtResource("1_script")
+
+[node name="Background" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBackground")
+
+[node name="PageMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Page" type="VBoxContainer" parent="PageMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HeaderPanel" type="PanelContainer" parent="PageMargin/Page"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleHeader")
+
+[node name="Header" type="VBoxContainer" parent="PageMargin/Page/HeaderPanel"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="ProjectTitle" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 26
+text = "NEOFutbol"
+
+[node name="CompetitionTitle" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Temporada · Competición"
+
+[node name="ScopeLabel" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.86, 1)
+text = ""
+
+[node name="SyntheticBadge" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.78, 0.25, 1)
+theme_override_font_sizes/font_size = 14
+text = "DATOS SINTÉTICOS · DEMOSTRACIÓN"
+
+[node name="ErrorLabel" type="Label" parent="PageMargin/Page"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.42, 0.42, 1)
+text = "Error"
+autowrap_mode = 2
+
+[node name="DiagnosticsPanel" type="PanelContainer" parent="PageMargin/Page"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleDiagnostics")
+
+[node name="Diagnostics" type="VBoxContainer" parent="PageMargin/Page/DiagnosticsPanel"]
+layout_mode = 2
+
+[node name="ProvisionalLabel" type="Label" parent="PageMargin/Page/DiagnosticsPanel/Diagnostics"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0.35, 1)
+text = "Clasificación provisional"
+
+[node name="PendingDiagnosticsLabel" type="Label" parent="PageMargin/Page/DiagnosticsPanel/Diagnostics"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+autowrap_mode = 2
+
+[node name="Tabs" type="TabContainer" parent="PageMargin/Page"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+current_tab = 0
+
+[node name="Clasificación" type="MarginContainer" parent="PageMargin/Page/Tabs"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="StandingsTree" type="Tree" parent="PageMargin/Page/Tabs/Clasificación"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(700, 320)
+layout_mode = 2
+size_flags_vertical = 3
+columns = 10
+column_titles_visible = true
+hide_root = true
+select_mode = 1
+
+[node name="Calendario" type="MarginContainer" parent="PageMargin/Page/Tabs"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="CalendarLayout" type="VBoxContainer" parent="PageMargin/Page/Tabs/Calendario"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="RoundRow" type="HBoxContainer" parent="PageMargin/Page/Tabs/Calendario/CalendarLayout"]
+layout_mode = 2
+
+[node name="RoundPrompt" type="Label" parent="PageMargin/Page/Tabs/Calendario/CalendarLayout/RoundRow"]
+layout_mode = 2
+text = "Jornada"
+
+[node name="RoundSelector" type="OptionButton" parent="PageMargin/Page/Tabs/Calendario/CalendarLayout/RoundRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+focus_mode = 2
+
+[node name="MatchScroll" type="ScrollContainer" parent="PageMargin/Page/Tabs/Calendario/CalendarLayout"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="MatchList" type="VBoxContainer" parent="PageMargin/Page/Tabs/Calendario/CalendarLayout/MatchScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8

@@ -40,6 +40,19 @@ func _initialize() -> void:
 		and initialized.data.audit_entry_count == 0, "inicialización vacía")
 	_check(initialized.ok and initialized.data.selection == reference_selection,
 		"inicialización informa selección")
+	var session_context = controller.get_session_context()
+	_check(session_context.ok and session_context.data.selection == reference_selection,
+		"consulta pública de la selección de sesión")
+	_check(session_context.ok and session_context.data.fixtures.size()
+		== reference_fixtures.size(), "consulta pública del calendario de sesión")
+	session_context.data.selection.season_id = "mutated_context"
+	session_context.data.fixtures[0].fixture_id = "mutated_context_fixture"
+	session_context.data.fixtures[0].metadata["synthetic"] = false
+	var fresh_context = controller.get_session_context()
+	_check(fresh_context.data.selection == reference_selection
+		and fresh_context.data.fixtures[0].fixture_id == reference_fixtures[0].fixture_id
+		and fresh_context.data.fixtures[0].metadata.synthetic,
+		"el contexto público devuelve copias defensivas")
 	var initial_table = controller.get_standings()
 	_check(initial_table.ok and initial_table.data.rows.size() == 4,
 		"consulta de tabla inicial")
@@ -186,6 +199,7 @@ func _test_before_initialization() -> void:
 	var controller = Controller.new()
 	_expect_error(controller.get_standings(), "not_initialized")
 	_expect_error(controller.get_results(), "not_initialized")
+	_expect_error(controller.get_session_context(), "not_initialized")
 	_expect_error(controller.get_audit_entries(), "not_initialized")
 	_expect_error(controller.apply_round([], 1), "not_initialized")
 	_expect_error(controller.correct_results([]), "not_initialized")

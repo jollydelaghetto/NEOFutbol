@@ -399,8 +399,7 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 		_result("direct_ya", Result.Status.FINAL, 1, 0),
 		_result("direct_yx", Result.Status.FINAL, 1, 0),
 	]
-	var direct_rules = _rules(3, 1, 0, "season_a", "league",
-		["head_to_head_points"])
+	var direct_rules = _direct_rules(3, 1, 0, ["head_to_head_points"], 1)
 	var direct_table = service.calculate(direct_clubs, direct_fixtures,
 		direct_results, direct_rules, selection)
 	_check(direct_table.ok and _index_of(direct_table, "direct_a")
@@ -408,11 +407,43 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 		"dos clubes resueltos por puntos directos")
 	_check(_row(direct_table, "direct_a").points == _row(direct_table, "direct_b").points,
 		"los puntos generales siguen siendo el criterio principal")
-	_expect_pending(direct_table, "calendar_completeness_unverified", [])
-	_check(direct_table.data.provisional,
-		"un único partido directo no certifica que la serie esté completa")
+	_check(direct_table.data.pending_tiebreakers.is_empty()
+		and not direct_table.data.provisional,
+		"una vuelta explícita certifica un único partido directo")
 	_check(direct_table.data.tiebreakers_applied == ["head_to_head_points"],
 		"criterio directo aplicado informado")
+
+	var legacy_rules = _rules(3, 1, 0, "season_a", "league",
+		["head_to_head_points"])
+	var legacy_table = service.calculate(direct_clubs, direct_fixtures,
+		direct_results, legacy_rules, selection)
+	_check(legacy_table.ok and _index_of(legacy_table, "direct_a")
+		< _index_of(legacy_table, "direct_b"),
+		"configuración antigua conserva un orden directo informativo")
+	_check(legacy_table.data.provisional and _pending_reasons(legacy_table) == [
+		"unknown_legs", "unknown_head_to_head_policy"
+	], "atributos ausentes conservan clasificación provisional")
+	var explicit_null = service.calculate(direct_clubs, direct_fixtures,
+		direct_results, _direct_rules(3, 1, 0, ["head_to_head_points"], null, null),
+		selection)
+	_check(explicit_null.ok and _pending_reasons(explicit_null) == [
+		"unknown_legs", "unknown_head_to_head_policy"
+	], "atributos null representan información no documentada")
+	var unknown_legs_rules = _direct_rules(3, 1, 0,
+		["head_to_head_points"], null)
+	var unknown_legs = service.calculate(direct_clubs, direct_fixtures,
+		direct_results, unknown_legs_rules, selection)
+	_check(_pending_reasons(unknown_legs) == ["unknown_legs"]
+		and unknown_legs.data.provisional,
+		"vueltas desconocidas se diagnostican sin inferencias")
+	var unknown_policy_rules = _rules(3, 1, 0, "season_a", "league",
+		["head_to_head_points"])
+	unknown_policy_rules.competition_format["legs"] = 1
+	var unknown_policy = service.calculate(direct_clubs, direct_fixtures,
+		direct_results, unknown_policy_rules, selection)
+	_check(_pending_reasons(unknown_policy) == ["unknown_head_to_head_policy"]
+		and unknown_policy.data.provisional,
+		"política ausente conserva desempate provisional")
 
 	var aggregate_clubs: Array[Club] = [_club("aggregate_a"), _club("aggregate_b")]
 	var aggregate_fixtures: Array[Fixture] = [
@@ -424,21 +455,57 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 		_result("aggregate_second", Result.Status.FINAL, 1, 0),
 	]
 	var aggregate_table = service.calculate(aggregate_clubs, aggregate_fixtures,
-		aggregate_results, _rules(3, 1, 0, "season_a", "league", [
+		aggregate_results, _direct_rules(3, 1, 0, [
 			"head_to_head_points", "head_to_head_goal_difference"
-		]), selection)
+		], 2), selection)
 	_check(aggregate_table.ok and _index_of(aggregate_table, "aggregate_a")
 		< _index_of(aggregate_table, "aggregate_b"),
 		"diferencia de goles directa decide tras puntos directos empatados")
 	_check(not aggregate_table.data.provisional,
 		"serie completa resuelve definitivamente el empate")
 	var aggregate_goals = service.calculate(aggregate_clubs, aggregate_fixtures,
-		aggregate_results, _rules(3, 1, 0, "season_a", "league", [
+		aggregate_results, _direct_rules(3, 1, 0, [
 			"head_to_head_points", "head_to_head_goals_for"
-		]), selection)
+		], 2), selection)
 	_check(aggregate_goals.ok and _index_of(aggregate_goals, "aggregate_a")
 		< _index_of(aggregate_goals, "aggregate_b"),
 		"goles a favor directos admitidos")
+
+	var single_leg_duplicate = service.calculate(aggregate_clubs, aggregate_fixtures,
+		aggregate_results, _direct_rules(3, 1, 0, ["head_to_head_points"], 1),
+		selection)
+	_expect_pending(single_leg_duplicate, "incomplete_calendar", [])
+	_check(single_leg_duplicate.data.unresolved_ties
+		== [["aggregate_a", "aggregate_b"]],
+		"una vuelta rechaza encuentros duplicados")
+	var missing_second_leg_fixtures: Array[Fixture] = [aggregate_fixtures[0]]
+	var missing_second_leg_results: Array[Result] = [
+		_result("aggregate_first", Result.Status.FINAL, 1, 1)
+	]
+	var missing_second_leg = service.calculate(aggregate_clubs,
+		missing_second_leg_fixtures, missing_second_leg_results,
+		_direct_rules(3, 1, 0, ["head_to_head_points"], 2), selection)
+	_expect_pending(missing_second_leg, "incomplete_calendar", [])
+	var missing_meetings = missing_second_leg.data.pending_tiebreakers[0]
+	_check(missing_meetings.expected_legs == 2
+		and missing_meetings.observed_meetings[0].total == 1,
+		"diagnóstico precisa vueltas esperadas y encuentros observados")
+	var duplicate_home_fixtures: Array[Fixture] = [
+		_fixture("duplicate_home_1", "aggregate_a", "aggregate_b"),
+		_fixture("duplicate_home_2", "aggregate_a", "aggregate_b"),
+	]
+	var duplicate_home_results: Array[Result] = [
+		_result("duplicate_home_1", Result.Status.FINAL, 1, 0),
+		_result("duplicate_home_2", Result.Status.FINAL, 0, 1),
+	]
+	var duplicate_home = service.calculate(aggregate_clubs, duplicate_home_fixtures,
+		duplicate_home_results, _direct_rules(3, 1, 0,
+			["head_to_head_points"], 2), selection)
+	_expect_pending(duplicate_home, "incomplete_calendar", [])
+	var duplicate_home_diagnostic = duplicate_home.data.pending_tiebreakers[0]
+	_check(duplicate_home_diagnostic.observed_meetings[0].first_home == 2
+		and duplicate_home_diagnostic.observed_meetings[0].second_home == 0,
+		"doble vuelta detecta localía duplicada")
 
 	var mini_clubs: Array[Club] = [
 		_club("mini_a"), _club("mini_b"), _club("mini_c"), _club("mini_e")
@@ -472,7 +539,7 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 		_result("mini_ce_4", Result.Status.FINAL, 1, 0),
 	]
 	var mini_table = service.calculate(mini_clubs, mini_fixtures, mini_results,
-		_rules(3, 1, 0, "season_a", "league", ["head_to_head_points"]), selection)
+		_direct_rules(3, 1, 0, ["head_to_head_points"], 2), selection)
 	_check(mini_table.ok and _club_ids(mini_table.data.rows).slice(0, 3)
 		== ["mini_a", "mini_b", "mini_c"],
 		"mini-liga completa de tres clubes usa solo resultados internos")
@@ -499,10 +566,10 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 			four_results.append(_result(first_fixture_id, Result.Status.FINAL, 0, 0))
 			four_results.append(_result(second_fixture_id, Result.Status.FINAL, 0, 0))
 	var four_table = service.calculate(four_clubs, four_fixtures, four_results,
-		_rules(3, 1, 0, "season_a", "league", [
+		_direct_rules(3, 1, 0, [
 			"head_to_head_points", "head_to_head_goal_difference",
 			"head_to_head_goals_for"
-		]), selection)
+		], 2), selection)
 	_check(four_table.ok and four_table.data.unresolved_ties == [four_ids],
 		"mini-liga de cuatro conserva empate deportivo persistente")
 	_check(_club_ids(four_table.data.rows) == four_ids,
@@ -529,20 +596,20 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 		_result("order_yx", Result.Status.FINAL, 1, 0),
 	]
 	var direct_first = service.calculate(priority_clubs, priority_fixtures, priority_results,
-		_rules(3, 1, 0, "season_a", "league", [
+		_direct_rules(3, 1, 0, [
 			"head_to_head_points", "goal_difference"
-		]), selection)
+		], 1), selection)
 	var general_first = service.calculate(priority_clubs, priority_fixtures, priority_results,
-		_rules(3, 1, 0, "season_a", "league", [
+		_direct_rules(3, 1, 0, [
 			"goal_difference", "head_to_head_points"
-		]), selection)
+		], 1), selection)
 	_check(_index_of(direct_first, "order_a") < _index_of(direct_first, "order_b")
 		and _index_of(general_first, "order_b") < _index_of(general_first, "order_a"),
 		"el orden declarado entre criterios directos y generales cambia el resultado")
 
 	for points_win in [2, 3]:
 		var configured = service.calculate(direct_clubs, direct_fixtures, direct_results,
-			_rules(points_win, 1, 0, "season_a", "league", ["head_to_head_points"]),
+			_direct_rules(points_win, 1, 0, ["head_to_head_points"], 1),
 			selection)
 		_check(configured.ok and _index_of(configured, "direct_a")
 			< _index_of(configured, "direct_b"),
@@ -552,7 +619,7 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 	var pending_fixtures: Array[Fixture] = [
 		_fixture("pending_direct", "pending_a", "pending_b")
 	]
-	var pending_rules = _rules(3, 1, 0, "season_a", "league", ["head_to_head_points"])
+	var pending_rules = _direct_rules(3, 1, 0, ["head_to_head_points"], 1)
 	var pending_result = service.calculate(pending_clubs, pending_fixtures,
 		[_result("pending_direct", Result.Status.PENDING, null, null)],
 		pending_rules, selection)
@@ -566,15 +633,26 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 	_expect_pending(missing_result, "missing_results", ["pending_direct"])
 	_check(missing_result.data.provisional,
 		"partido sin registro de resultado mantiene tabla provisional")
+	var pending_double_results: Array[Result] = [
+		_result("aggregate_first", Result.Status.PENDING, null, null),
+		_result("aggregate_second", Result.Status.PENDING, null, null),
+	]
+	var pending_double = service.calculate(aggregate_clubs, aggregate_fixtures,
+		pending_double_results, _direct_rules(3, 1, 0,
+			["head_to_head_points"], 2), selection)
+	_expect_pending(pending_double, "pending_results",
+		["aggregate_first", "aggregate_second"])
+	_check(pending_double.data.unresolved_ties == [["aggregate_a", "aggregate_b"]],
+		"doble vuelta pendiente no aplica resultados parciales")
 
 	var incomplete_fixtures: Array[Fixture] = aggregate_fixtures.duplicate()
 	var incomplete_results: Array[Result] = [
 		_result("aggregate_first", Result.Status.FINAL, 1, 1)
 	]
 	var incomplete_double = service.calculate(aggregate_clubs, incomplete_fixtures,
-		incomplete_results, _rules(3, 1, 0, "season_a", "league", [
+		incomplete_results, _direct_rules(3, 1, 0, [
 			"head_to_head_points", "head_to_head_goal_difference"
-		]), selection)
+		], 2), selection)
 	_expect_pending(incomplete_double, "missing_results", ["aggregate_second"])
 	_check(incomplete_double.data.unresolved_ties
 		== [["aggregate_a", "aggregate_b"]],
@@ -593,6 +671,27 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 		pending_rules, selection)
 	_expect_pending(uneven, "incomplete_calendar", [])
 	_check(uneven.data.provisional, "calendario incompleto no certifica la mini-liga")
+
+	for invalid_legs in [-1, 0, 3, 1.5, "1", true, [], {}]:
+		var invalid_legs_rules = _rules(3, 1, 0)
+		invalid_legs_rules.competition_format["legs"] = invalid_legs
+		_expect_error(service.calculate(direct_clubs, direct_fixtures,
+			direct_results, invalid_legs_rules, selection), "invalid_legs")
+	for invalid_policy in [1, true, [], {}]:
+		var invalid_policy_rules = _rules(3, 1, 0)
+		invalid_policy_rules.competition_format["head_to_head_policy"] = invalid_policy
+		_expect_error(service.calculate(direct_clubs, direct_fixtures,
+			direct_results, invalid_policy_rules, selection),
+			"invalid_head_to_head_policy")
+	for unsupported_policy in ["restart", "recursive", "Single_Pass", ""]:
+		var unsupported_policy_rules = _rules(3, 1, 0)
+		unsupported_policy_rules.competition_format["head_to_head_policy"] = \
+			unsupported_policy
+		var unsupported = service.calculate(direct_clubs, direct_fixtures,
+			direct_results, unsupported_policy_rules, selection)
+		_expect_error(unsupported, "unsupported_head_to_head_policy")
+		_check(unsupported.errors[0].get("policy") == unsupported_policy,
+			"política desconocida exacta en diagnóstico")
 
 	var subgroup_clubs: Array[Club] = [
 		_club("sub_a"), _club("sub_b"), _club("sub_c"),
@@ -629,9 +728,9 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 		_result("sub_cy", Result.Status.FINAL, 1, 0),
 	]
 	var subgroup_table = service.calculate(subgroup_clubs, subgroup_fixtures,
-		subgroup_results, _rules(3, 1, 0, "season_a", "league", [
+		subgroup_results, _direct_rules(3, 1, 0, [
 			"head_to_head_goal_difference", "head_to_head_points"
-		]), selection)
+		], null), selection)
 	_check(subgroup_table.ok and _club_ids(subgroup_table.data.rows).slice(0, 3)
 		== ["sub_a", "sub_b", "sub_c"],
 		"criterios posteriores se aplican al subgrupo que continúa empatado")
@@ -652,9 +751,9 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 	_check(scoped.ok and _index_of(scoped, "direct_a") < _index_of(scoped, "direct_b"),
 		"mini-liga separa exactamente temporada competición fase y grupo")
 
-	var direct_duplicate = _rules(3, 1, 0, "season_a", "league", [
+	var direct_duplicate = _direct_rules(3, 1, 0, [
 		"head_to_head_points", "head_to_head_points"
-	])
+	], 1)
 	_expect_error(service.calculate(direct_clubs, direct_fixtures, direct_results,
 		direct_duplicate, selection), "duplicate_tiebreaker")
 	var empty_fixture = _fixture("", "direct_a", "direct_b")
@@ -674,6 +773,10 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 	var permuted = service.calculate(permuted_clubs, permuted_fixtures,
 		permuted_results, direct_rules, selection)
 	_check(permuted == direct_table, "desempate directo determinista ante permutaciones")
+	var permuted_legacy = service.calculate(permuted_clubs, permuted_fixtures,
+		permuted_results, legacy_rules, selection)
+	_check(permuted_legacy == legacy_table,
+		"diagnósticos de reglas desconocidas deterministas ante permutaciones")
 	_check(_snapshot_clubs(direct_clubs) == club_snapshot, "mini-liga no modifica clubes")
 	_check(_snapshot_fixtures(direct_fixtures) == fixture_snapshot,
 		"mini-liga no modifica calendario")
@@ -685,25 +788,31 @@ func _run_head_to_head_checks(service: Service, selection: Dictionary) -> void:
 	var generated_clubs: Array[Club] = [
 		_club("head_g1"), _club("head_g2"), _club("head_g3"), _club("head_g4")
 	]
-	var generated = Generator.new().generate(generated_clubs, {
-		"format": "round_robin", "season_id": "season_a",
-		"competition_id": "league", "stage_id": "regular",
-		"group_id": null, "legs": 2,
-	})
-	_check(generated.ok, "calendario de doble vuelta generado para mini-liga")
-	if generated.ok:
-		var generated_results: Array[Result] = []
-		for fixture in generated.data:
-			generated_results.append(_result(fixture.fixture_id, Result.Status.FINAL, 0, 0))
-		var generated_table = service.calculate(generated_clubs, generated.data,
-			generated_results, _rules(3, 1, 0, "season_a", "league", [
-				"head_to_head_points", "head_to_head_goal_difference"
-			]), selection)
-		_check(generated_table.ok and generated_table.data.pending_tiebreakers.is_empty(),
-			"integración directa con LeagueCalendarGenerator")
-		_check(generated_table.data.unresolved_ties.size() == 1
-			and generated_table.data.unresolved_ties[0].size() == 4,
-			"calendario generado conserva empate compartido real")
+	for generated_legs in [1, 2]:
+		var generated = Generator.new().generate(generated_clubs, {
+			"format": "round_robin", "season_id": "season_a",
+			"competition_id": "league", "stage_id": "regular",
+			"group_id": null, "legs": generated_legs,
+		})
+		_check(generated.ok,
+			"calendario de %d vuelta(s) generado para mini-liga" % generated_legs)
+		if generated.ok:
+			var generated_results: Array[Result] = []
+			for fixture in generated.data:
+				generated_results.append(
+					_result(fixture.fixture_id, Result.Status.FINAL, 0, 0)
+				)
+			var generated_table = service.calculate(generated_clubs, generated.data,
+				generated_results, _direct_rules(3, 1, 0, [
+					"head_to_head_points", "head_to_head_goal_difference"
+				], generated_legs), selection)
+			_check(generated_table.ok
+				and generated_table.data.pending_tiebreakers.is_empty(),
+				"integración directa con LeagueCalendarGenerator para %d vuelta(s)"
+					% generated_legs)
+			_check(generated_table.data.unresolved_ties.size() == 1
+				and generated_table.data.unresolved_ties[0].size() == 4,
+				"calendario generado conserva empate compartido real")
 
 
 func _club(club_id: String, season_id: String = "season_a") -> Club:
@@ -757,6 +866,16 @@ func _rules(points_win: int, points_draw: int, points_loss: int,
 	rules.substitution_rules = null
 	rules.promotion_relegation_rules = null
 	rules.competition_format = {"kind": "round_robin"}
+	return rules
+
+
+func _direct_rules(points_win: int, points_draw: int, points_loss: int,
+		tiebreakers: Array, legs: Variant,
+		head_to_head_policy: Variant = "single_pass") -> Rules:
+	var rules = _rules(points_win, points_draw, points_loss,
+		"season_a", "league", tiebreakers)
+	rules.competition_format["legs"] = legs
+	rules.competition_format["head_to_head_policy"] = head_to_head_policy
 	return rules
 
 
@@ -826,6 +945,13 @@ func _expect_pending(calculated: Dictionary, reason: String,
 		_check(diagnostic.get("club_ids") is Array
 			and diagnostic.club_ids.size() >= 2,
 			"grupo localizable en desempate pendiente")
+
+
+func _pending_reasons(calculated: Dictionary) -> Array[String]:
+	var reasons: Array[String] = []
+	for diagnostic in calculated.data.pending_tiebreakers:
+		reasons.append(diagnostic.reason)
+	return reasons
 
 
 func _expect_error(calculated: Dictionary, code: String) -> void:

@@ -51,6 +51,133 @@ func _initialize() -> void:
 			"empate deportivo explícito")
 		_check(calculated.data.tiebreakers_applied == [], "sin desempate inventado")
 
+	var goal_difference_only = service.calculate(clubs, fixtures, results,
+		_rules(3, 1, 0, "season_a", "league", ["goal_difference"]), selection)
+	_check(goal_difference_only.ok and goal_difference_only.data.provisional,
+		"diferencia de goles insuficiente conserva empate")
+	_check(goal_difference_only.data.unresolved_ties == [["club_b", "club_c"]],
+		"empate persistente tras criterio disponible")
+	_check(goal_difference_only.data.tiebreakers_applied == ["goal_difference"],
+		"criterio aplicado informado")
+	var goals_for = service.calculate(clubs, fixtures, results,
+		_rules(3, 1, 0, "season_a", "league", ["goals_for"]), selection)
+	_check(goals_for.ok and _club_ids(goals_for.data.rows)
+		== ["club_a", "club_c", "club_b", "club_d"],
+		"desempate por goles a favor")
+	_check(not goals_for.data.provisional and goals_for.data.unresolved_ties.is_empty(),
+		"primer criterio resuelve el empate")
+	var second_criterion = service.calculate(clubs, fixtures, results,
+		_rules(3, 1, 0, "season_a", "league",
+			["goal_difference", "goals_for"]), selection)
+	_check(second_criterion.ok and _club_ids(second_criterion.data.rows)
+		== ["club_a", "club_c", "club_b", "club_d"],
+		"segundo criterio resuelve el empate")
+	_check(second_criterion.data.tiebreakers_applied
+		== ["goal_difference", "goals_for"], "prioridad declarada informada")
+
+	var priority_clubs: Array[Club] = [
+		_club("priority_a"), _club("priority_b"), _club("opponent_x"), _club("opponent_y")
+	]
+	var priority_fixtures: Array[Fixture] = [
+		_fixture("priority_a_match", "priority_a", "opponent_x"),
+		_fixture("priority_b_match", "priority_b", "opponent_y"),
+	]
+	var priority_results: Array[Result] = [
+		_result("priority_a_match", Result.Status.FINAL, 2, 0),
+		_result("priority_b_match", Result.Status.FINAL, 4, 3),
+	]
+	var difference_first_rules = _rules(3, 1, 0, "season_a", "league",
+		["goal_difference", "goals_for"])
+	var difference_first_snapshot = _snapshot_rules(difference_first_rules)
+	var difference_first = service.calculate(priority_clubs, priority_fixtures,
+		priority_results, difference_first_rules, selection)
+	var goals_first = service.calculate(priority_clubs, priority_fixtures, priority_results,
+		_rules(3, 1, 0, "season_a", "league", ["goals_for", "goal_difference"]), selection)
+	_check(difference_first.ok and _index_of(difference_first, "priority_a")
+		< _index_of(difference_first, "priority_b"), "diferencia de goles con mayor prioridad")
+	_check(goals_first.ok and _index_of(goals_first, "priority_b")
+		< _index_of(goals_first, "priority_a"), "cambiar prioridad cambia la clasificación")
+	_check(difference_first.data.tiebreakers_applied == ["goal_difference", "goals_for"]
+		and goals_first.data.tiebreakers_applied == ["goals_for", "goal_difference"],
+		"orden exacto de criterios conservado")
+	_check(_snapshot_rules(difference_first_rules) == difference_first_snapshot,
+		"criterios configurados sin modificar")
+	_check(difference_first == service.calculate(priority_clubs, priority_fixtures,
+		priority_results, difference_first_rules, selection),
+		"desempate configurado determinista")
+
+	var wins_clubs: Array[Club] = [
+		_club("wins_a"), _club("wins_b"), _club("wins_c"),
+		_club("wins_d"), _club("wins_e"), _club("wins_idle")
+	]
+	var wins_fixtures: Array[Fixture] = [
+		_fixture("wins_a_match", "wins_a", "wins_c"),
+		_fixture("wins_b_draw_c", "wins_b", "wins_c"),
+		_fixture("wins_b_draw_d", "wins_b", "wins_d"),
+		_fixture("wins_b_draw_e", "wins_b", "wins_e"),
+		_fixture("wins_pending", "wins_a", "wins_idle"),
+	]
+	var wins_results: Array[Result] = [
+		_result("wins_a_match", Result.Status.FINAL, 1, 0),
+		_result("wins_b_draw_c", Result.Status.FINAL, 0, 0),
+		_result("wins_b_draw_d", Result.Status.FINAL, 1, 1),
+		_result("wins_b_draw_e", Result.Status.FINAL, 2, 2),
+		_result("wins_pending", Result.Status.PENDING, null, null),
+	]
+	var wins_table = service.calculate(wins_clubs, wins_fixtures, wins_results,
+		_rules(3, 1, 0, "season_a", "league", ["wins"]), selection)
+	_check(wins_table.ok and _index_of(wins_table, "wins_a")
+		< _index_of(wins_table, "wins_b"), "desempate por número de victorias")
+	_check(_row(wins_table, "wins_a").points == _row(wins_table, "wins_b").points
+		and _row(wins_table, "wins_a").wins == 1
+		and _row(wins_table, "wins_b").wins == 0, "victorias comparadas tras puntos")
+	_check(_row(wins_table, "wins_idle").played == 0,
+		"pendiente y club sin partidos no alteran criterios")
+
+	var three_clubs: Array[Club] = [
+		_club("three_a"), _club("three_b"), _club("three_c"),
+		_club("three_x"), _club("three_y"), _club("three_z")
+	]
+	var three_fixtures: Array[Fixture] = [
+		_fixture("three_a_match", "three_a", "three_x"),
+		_fixture("three_b_match", "three_b", "three_y"),
+		_fixture("three_c_match", "three_c", "three_z"),
+	]
+	var three_results: Array[Result] = [
+		_result("three_a_match", Result.Status.FINAL, 2, 0),
+		_result("three_b_match", Result.Status.FINAL, 3, 1),
+		_result("three_c_match", Result.Status.FINAL, 1, 0),
+	]
+	var three_table = service.calculate(three_clubs, three_fixtures, three_results,
+		_rules(3, 1, 0, "season_a", "league",
+			["goal_difference", "goals_for"]), selection)
+	_check(three_table.ok and _club_ids(three_table.data.rows).slice(0, 3)
+		== ["three_b", "three_a", "three_c"],
+		"tres clubes inicialmente empatados se resuelven por prioridades")
+
+	var group_clubs: Array[Club] = [
+		_club("group_a"), _club("group_b"), _club("group_c"), _club("group_d")
+	]
+	var group_fixtures: Array[Fixture] = [
+		_fixture("group_a_match", "group_a", "group_c"),
+		_fixture("group_b_match", "group_b", "group_d"),
+	]
+	var group_results: Array[Result] = [
+		_result("group_a_match", Result.Status.FINAL, 1, 0),
+		_result("group_b_match", Result.Status.FINAL, 1, 0),
+	]
+	var group_table = service.calculate(group_clubs, group_fixtures, group_results,
+		_rules(3, 1, 0, "season_a", "league",
+			["goal_difference", "goals_for", "wins"]), selection)
+	_check(group_table.ok and group_table.data.provisional,
+		"empates persisten tras todos los criterios")
+	_check(group_table.data.unresolved_ties
+		== [["group_a", "group_b"], ["group_c", "group_d"]],
+		"grupos de desempate independientes")
+	_check([_row(group_table, "group_a").position, _row(group_table, "group_b").position,
+		_row(group_table, "group_c").position, _row(group_table, "group_d").position]
+		== [1, 1, 3, 3], "posiciones compartidas numeradas correctamente")
+
 	var two_point = service.calculate(clubs, fixtures, results, _rules(2, 1, 0), selection)
 	_check(two_point.ok and _row(two_point, "club_a").points == 4,
 		"regla de dos puntos por victoria")
@@ -156,6 +283,37 @@ func _initialize() -> void:
 		invalid_rules.competition_format = format
 		_expect_error(service.calculate(clubs, fixtures, results, invalid_rules, selection),
 			"unsupported_format")
+	var null_tiebreakers = _rules(3, 1, 0)
+	null_tiebreakers.tiebreakers = null
+	_expect_error(service.calculate(clubs, fixtures, results, null_tiebreakers, selection),
+		"invalid_tiebreakers")
+	for value in ["goal_difference", 1, true, {}]:
+		var invalid_tiebreakers = _rules(3, 1, 0)
+		invalid_tiebreakers.tiebreakers = value
+		_expect_error(service.calculate(clubs, fixtures, results,
+			invalid_tiebreakers, selection), "invalid_tiebreakers")
+	for value in [1, true, {}]:
+		var invalid_element = _rules(3, 1, 0)
+		invalid_element.tiebreakers = [value]
+		_expect_error(service.calculate(clubs, fixtures, results,
+			invalid_element, selection), "invalid_tiebreaker")
+	for criterion in ["Goal_Difference", "goal_diff", "head_to_head", "unknown"]:
+		var unknown_tiebreaker = _rules(3, 1, 0)
+		unknown_tiebreaker.tiebreakers = [criterion]
+		var unknown_error = service.calculate(clubs, fixtures, results,
+			unknown_tiebreaker, selection)
+		_expect_error(unknown_error, "unknown_tiebreaker")
+		_check(unknown_error.errors[0].get("criterion") == criterion,
+			"criterio desconocido exacto")
+	var duplicate_tiebreaker = _rules(3, 1, 0)
+	duplicate_tiebreaker.tiebreakers = ["wins", "wins"]
+	var duplicate_error = service.calculate(clubs, fixtures, results,
+		duplicate_tiebreaker, selection)
+	_expect_error(duplicate_error, "duplicate_tiebreaker")
+	_check(duplicate_error.errors[0].get("index") == 1
+		and duplicate_error.errors[0].get("first_index") == 0
+		and duplicate_error.errors[0].get("criterion") == "wins",
+		"criterio duplicado localizable")
 
 	var missing_club_fixtures: Array[Fixture] = [
 		_fixture("missing_club", "club_a", "missing")
@@ -260,7 +418,8 @@ func _result(fixture_id: String, status: int, home_goals: Variant, away_goals: V
 
 
 func _rules(points_win: int, points_draw: int, points_loss: int,
-		season_id: String = "season_a", competition_id: String = "league") -> Rules:
+		season_id: String = "season_a", competition_id: String = "league",
+		tiebreakers: Variant = []) -> Rules:
 	var rules = Rules.new()
 	rules.season_id = season_id
 	rules.competition_id = competition_id
@@ -269,7 +428,7 @@ func _rules(points_win: int, points_draw: int, points_loss: int,
 	rules.points_loss = points_loss
 	rules.team_count = null
 	rules.round_count = null
-	rules.tiebreakers = ["undefined_for_phase_1"]
+	rules.tiebreakers = tiebreakers.duplicate() if tiebreakers is Array else tiebreakers
 	rules.substitution_rules = null
 	rules.promotion_relegation_rules = null
 	rules.competition_format = {"kind": "round_robin"}
@@ -291,6 +450,13 @@ func _row(calculated: Dictionary, club_id: String) -> Dictionary:
 		if row.club_id == club_id:
 			return row
 	return {}
+
+
+func _index_of(calculated: Dictionary, club_id: String) -> int:
+	for index in calculated.data.rows.size():
+		if calculated.data.rows[index].club_id == club_id:
+			return index
+	return -1
 
 
 func _expect_row(row: Dictionary, position: int, club_id: String, played: int,

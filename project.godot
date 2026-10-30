@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="NEOFutbol"
-run/main_scene="uid://rnwskr55hfhs"
+run/main_scene="res://game/scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 

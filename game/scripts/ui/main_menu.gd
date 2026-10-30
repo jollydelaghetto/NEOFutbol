@@ -4,10 +4,14 @@ extends Control
 const DEFAULT_SEASON_SCENE = preload("res://game/scenes/season_overview.tscn")
 const DEFAULT_SELECTION_SCENE = preload("res://game/scenes/season_selection.tscn")
 const SessionLoader = preload("res://game/scripts/services/season_session_loader.gd")
+const DEFAULT_SEASON_ROOT = "res://data/seasons"
+const DEVELOPMENT_SEASON_ROOT = "res://data/dev/seasons"
+const DEVELOPMENT_ARGUMENT = "--dev-season-pack"
+const DEVELOPMENT_WARNING = "MODO DESARROLLO — DATOS SINTÉTICOS"
 
 @export var season_scene: PackedScene = DEFAULT_SEASON_SCENE
 @export var selection_scene: PackedScene = DEFAULT_SELECTION_SCENE
-@export var season_root_path := "res://data/seasons"
+@export var season_root_path := DEFAULT_SEASON_ROOT
 
 @onready var menu_presentation: CenterContainer = %MenuPresentation
 @onready var season_host: MarginContainer = %SeasonHost
@@ -15,16 +19,20 @@ const SessionLoader = preload("res://game/scripts/services/season_session_loader
 @onready var selection_button: Button = %SelectionButton
 @onready var back_button: Button = %BackButton
 @onready var error_label: Label = %ErrorLabel
+@onready var development_mode_banner: Label = %DevelopmentModeBanner
 
 var _season_view: Control = null
 var _selection_view: Control = null
 var _transition_in_progress := false
 var _historical_view_active := false
 var _historical_season_id := ""
+var _development_season_pack_active := false
+var command_line_user_args: PackedStringArray = OS.get_cmdline_user_args()
 var session_loader = SessionLoader.new()
 
 
 func _ready() -> void:
+	_configure_runtime_mode(command_line_user_args)
 	demo_button.pressed.connect(_on_demo_button_pressed)
 	selection_button.pressed.connect(_on_selection_button_pressed)
 	back_button.pressed.connect(_on_back_button_pressed)
@@ -165,11 +173,16 @@ func open_historical_season(season_id: String) -> Dictionary:
 			"code": "season_view_not_ready",
 			"message": "La consulta de temporada no terminó de prepararse.",
 		}], instance if is_instance_valid(instance) else null)
+	var presentation: Dictionary = prepared.data.presentation.duplicate(true)
+	if _development_season_pack_active:
+		presentation["synthetic"] = true
+		presentation["season_name"] = "Temporada técnica 1982-83"
+		presentation["competition_name"] = "Liga sintética de desarrollo"
 	var configured = instance.configure(
 		prepared.data.controller,
 		prepared.data.calendar,
 		prepared.data.selection,
-		prepared.data.presentation
+		presentation
 	)
 	if not configured.ok:
 		return _historical_failure(configured.errors, instance)
@@ -179,6 +192,10 @@ func open_historical_season(season_id: String) -> Dictionary:
 	_selection_view = null
 	_season_view = instance
 	_season_view.visible = true
+	if _development_season_pack_active:
+		var badge = _season_view.get_node_or_null("%SyntheticBadge")
+		if badge is Label:
+			badge.text = DEVELOPMENT_WARNING
 	_historical_view_active = true
 	_historical_season_id = season_id
 	back_button.text = "Volver a temporadas"
@@ -277,6 +294,18 @@ func _show_menu_state() -> void:
 	back_button.text = "Volver al inicio"
 	demo_button.disabled = false
 	selection_button.disabled = false
+
+
+## El modo de desarrollo solo se activa con un argumento de usuario separado
+## de las opciones del motor mediante `--`. Repetir el argumento es idempotente.
+func _configure_runtime_mode(user_args: PackedStringArray) -> void:
+	_development_season_pack_active = DEVELOPMENT_ARGUMENT in user_args
+	if _development_season_pack_active:
+		season_root_path = DEVELOPMENT_SEASON_ROOT
+	elif season_root_path == DEVELOPMENT_SEASON_ROOT:
+		# Evita que una ruta guardada en la escena active el pack silenciosamente.
+		season_root_path = DEFAULT_SEASON_ROOT
+	development_mode_banner.visible = _development_season_pack_active
 
 
 func _show_failure(code: String, message: String) -> Dictionary:

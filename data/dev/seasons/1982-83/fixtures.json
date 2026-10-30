@@ -1,0 +1,74 @@
+[
+  {
+    "fixture_id": "dev_round_01_match_01",
+    "season_id": "1982-83",
+    "competition_id": "dev_synthetic_league",
+    "stage_id": "dev_regular",
+    "group_id": "dev_group_a",
+    "home_club_id": "dev_aurora_union",
+    "away_club_id": "dev_duna_deportivo",
+    "round_number": 1,
+    "scheduled_date": "1982-09-04",
+    "metadata": {"synthetic": true}
+  },
+  {
+    "fixture_id": "dev_round_01_match_02",
+    "season_id": "1982-83",
+    "competition_id": "dev_synthetic_league",
+    "stage_id": "dev_regular",
+    "group_id": "dev_group_a",
+    "home_club_id": "dev_bruma_atletico",
+    "away_club_id": "dev_cometa_fc",
+    "round_number": 1,
+    "scheduled_date": "1982-09-04",
+    "metadata": {"synthetic": true}
+  },
+  {
+    "fixture_id": "dev_round_02_match_01",
+    "season_id": "1982-83",
+    "competition_id": "dev_synthetic_league",
+    "stage_id": "dev_regular",
+    "group_id": "dev_group_a",
+    "home_club_id": "dev_aurora_union",
+    "away_club_id": "dev_cometa_fc",
+    "round_number": 2,
+    "scheduled_date": "1982-09-11",
+    "metadata": {"synthetic": true}
+  },
+  {
+    "fixture_id": "dev_round_02_match_02",
+    "season_id": "1982-83",
+    "competition_id": "dev_synthetic_league",
+    "stage_id": "dev_regular",
+    "group_id": "dev_group_a",
+    "home_club_id": "dev_duna_deportivo",
+    "away_club_id": "dev_bruma_atletico",
+    "round_number": 2,
+    "scheduled_date": "1982-09-11",
+    "metadata": {"synthetic": true}
+  },
+  {
+    "fixture_id": "dev_round_03_match_01",
+    "season_id": "1982-83",
+    "competition_id": "dev_synthetic_league",
+    "stage_id": "dev_regular",
+    "group_id": "dev_group_a",
+    "home_club_id": "dev_aurora_union",
+    "away_club_id": "dev_bruma_atletico",
+    "round_number": 3,
+    "scheduled_date": "1982-09-18",
+    "metadata": {"synthetic": true}
+  },
+  {
+    "fixture_id": "dev_round_03_match_02",
+    "season_id": "1982-83",
+    "competition_id": "dev_synthetic_league",
+    "stage_id": "dev_regular",
+    "group_id": "dev_group_a",
+    "home_club_id": "dev_cometa_fc",
+    "away_club_id": "dev_duna_deportivo",
+    "round_number": 3,
+    "scheduled_date": "1982-09-18",
+    "metadata": {"synthetic": true}
+  }
+]

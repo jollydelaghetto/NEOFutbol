@@ -1,0 +1,22 @@
+[
+  {
+    "club_id": "dev_aurora_union",
+    "season_id": "1982-83",
+    "division_id": "dev_first_division"
+  },
+  {
+    "club_id": "dev_bruma_atletico",
+    "season_id": "1982-83",
+    "division_id": "dev_first_division"
+  },
+  {
+    "club_id": "dev_cometa_fc",
+    "season_id": "1982-83",
+    "division_id": "dev_first_division"
+  },
+  {
+    "club_id": "dev_duna_deportivo",
+    "season_id": "1982-83",
+    "division_id": "dev_first_division"
+  }
+]

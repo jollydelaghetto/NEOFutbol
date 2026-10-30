@@ -64,6 +64,9 @@ func _test_initial_screen(menu) -> void:
 		"avisa de los datos ficticios")
 	_check(menu.get_node("%DevelopmentStatus").text.contains("desarrollo"),
 		"muestra el estado de desarrollo")
+	_check(menu.season_root_path == "res://data/seasons"
+		and not menu.get_node("%DevelopmentModeBanner").visible,
+		"el arranque normal mantiene aislado el pack de desarrollo")
 	_check(menu.menu_presentation.visible and not menu.season_host.visible
 		and not menu.back_button.visible, "presenta inicialmente el menú activo")
 	_check(menu.demo_button.focus_mode == Control.FOCUS_ALL

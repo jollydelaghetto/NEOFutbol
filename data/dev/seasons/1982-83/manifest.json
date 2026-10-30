@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "season_id": "1982-83",
+  "sources": [
+    "synthetic-original: created specifically for NEOFutbol development",
+    "technical-contract-only: does not represent the historical 1982-83 season"
+  ],
+  "checksum": {
+    "kind": "development-marker-not-cryptographic",
+    "value": "neofutbol-synthetic-season-pack-v1",
+    "verified": false
+  }
+}

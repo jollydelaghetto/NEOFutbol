@@ -1,0 +1,46 @@
+[
+  {
+    "player_id": "dev_player_aurora_01",
+    "season_id": "1982-83",
+    "club_id": "dev_aurora_union",
+    "historical_data": {},
+    "game_data": {},
+    "metadata": {
+      "synthetic": true,
+      "display_name": "Ariel Norte"
+    }
+  },
+  {
+    "player_id": "dev_player_bruma_01",
+    "season_id": "1982-83",
+    "club_id": "dev_bruma_atletico",
+    "historical_data": {},
+    "game_data": {},
+    "metadata": {
+      "synthetic": true,
+      "display_name": "Berto Niebla"
+    }
+  },
+  {
+    "player_id": "dev_player_cometa_01",
+    "season_id": "1982-83",
+    "club_id": "dev_cometa_fc",
+    "historical_data": {},
+    "game_data": {},
+    "metadata": {
+      "synthetic": true,
+      "display_name": "Ciro Estela"
+    }
+  },
+  {
+    "player_id": "dev_player_duna_01",
+    "season_id": "1982-83",
+    "club_id": "dev_duna_deportivo",
+    "historical_data": {},
+    "game_data": {},
+    "metadata": {
+      "synthetic": true,
+      "display_name": "Dario Arena"
+    }
+  }
+]

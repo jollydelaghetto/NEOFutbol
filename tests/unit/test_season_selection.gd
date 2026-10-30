@@ -17,6 +17,7 @@ class FakeCatalog:
 var failures: Array[String] = []
 var checks = 0
 var back_count = 0
+var requested_ids: Array[String] = []
 
 
 func _initialize() -> void:
@@ -32,7 +33,7 @@ func _run() -> void:
 
 	_check(view.get_script() == SelectionScript, "escena usa SeasonSelection")
 	var list: ItemList = view.get_node("%SeasonList")
-	var start: Button = view.get_node("%StartButton")
+	var consult: Button = view.get_node("%ConsultButton")
 	var back: Button = view.get_node("%BackButton")
 	var status: Label = view.get_node("%StatusLabel")
 	var details: Label = view.get_node("%DetailsLabel")
@@ -44,37 +45,43 @@ func _run() -> void:
 	_check(list.get_item_metadata(17) == "1999-00", "metadatos de identidad exactos")
 	_check(list.focus_mode == Control.FOCUS_ALL, "lista accesible por teclado")
 	_check(view.get_selected_season_id() == "1982-83", "selección inicial determinista")
-	_check(start.disabled and status.text.contains("Pack incompleto"),
+	_check(consult.text == "Consultar temporada", "acción identifica la consulta")
+	_check(consult.disabled and status.text.contains("Pack incompleto"),
 		"temporada incompleta no iniciable")
 	_check(details.text.contains("fixtures.json"), "contenido pendiente explicado")
 
-	_check(not view.has_signal("season_start_requested"),
-		"no publica una señal de inicio sin consumidor operativo")
+	_check(view.has_signal("season_view_requested")
+		and not view.has_signal("season_start_requested"),
+		"publica una señal específica de consulta")
+	view.season_view_requested.connect(_on_season_view_requested)
 	list.select(1)
 	list.item_selected.emit(1)
 	_check(view.get_selected_season_id() == "1983-84", "selección mediante índice de ItemList")
-	_check(start.disabled and status.text.contains("Datos deportivos disponibles"),
-		"pack jugable conserva su aptitud sin habilitar el inicio")
+	_check(not consult.disabled and status.text.contains("Datos deportivos disponibles"),
+		"pack jugable habilita la consulta")
 	_check(view._seasons[1].playable and source.data.seasons[1].playable,
 		"la interfaz no altera la disponibilidad deportiva del catálogo")
-	_check(details.text.contains("datos deportivos son aptos")
-		and details.text.contains("todavía no está implementado"),
-		"pack jugable explica que el flujo de inicio está pendiente")
-	start.pressed.emit()
-	_check(start.disabled, "una activación programática no habilita el botón")
+	_check(details.text.contains("clasificación y el calendario")
+		and details.text.contains("no inicia una carrera"),
+		"pack jugable explica el alcance de la consulta")
+	consult.pressed.emit()
+	_check(requested_ids == ["1983-84"], "solicitud transmite el identificador exacto")
 
 	list.select(2)
 	list.item_selected.emit(2)
 	_check(view.get_selected_season_id() == "1984-85"
-		and start.disabled and status.text.contains("Datos validados"),
+		and consult.disabled and status.text.contains("Datos validados"),
 		"pack validado pero no jugable permanece bloqueado")
 	_check(details.text.contains("no reúne los datos mínimos"),
 		"pack no jugable mantiene su explicación")
 
 	list.select(3)
 	list.item_selected.emit(3)
-	_check(start.disabled and status.text.contains("Datos no disponibles"),
+	consult.pressed.emit()
+	_check(consult.disabled and status.text.contains("Datos no disponibles"),
 		"temporada no descubierta se distingue y no permite iniciar")
+	_check(requested_ids == ["1983-84"],
+		"el manejador rechaza una activación no jugable aunque se emita pressed")
 
 	# La vista conserva copias y la selección al refrescar.
 	list.select(1)
@@ -85,6 +92,7 @@ func _run() -> void:
 	var refreshed = view.refresh_catalog()
 	_check(refreshed.ok and view.get_selected_season_id() == "1983-84",
 		"refresh conserva la selección")
+	_check(not consult.disabled, "refresh conserva habilitada la consulta apta")
 	_check(list.item_count == 29, "refresh no duplica filas")
 
 	view.back_requested.connect(_on_back)
@@ -99,7 +107,7 @@ func _run() -> void:
 	var failed = view.refresh_catalog()
 	_check(not failed.ok and error.visible and error.text == "fallo sintético",
 		"error de catálogo visible y no modal")
-	_check(list.item_count == 0 and start.disabled, "error no deja una acción obsoleta")
+	_check(list.item_count == 0 and consult.disabled, "error no deja una acción obsoleta")
 	back.pressed.emit()
 	_check(back_count == 2, "retorno disponible después de un error")
 	view.queue_free()
@@ -112,7 +120,7 @@ func _run() -> void:
 	var real_list: ItemList = real_view.get_node("%SeasonList")
 	_check(real_list.item_count == 29, "catálogo real conserva el horizonte")
 	_check(real_view.get_selected_season_id() == "1982-83"
-		and real_view.get_node("%StartButton").disabled,
+		and real_view.get_node("%ConsultButton").disabled,
 		"pack real incompleto permanece deshabilitado")
 	_check(real_view.get_node("%StatusLabel").text.contains("Pack incompleto"),
 		"estado real comunicado")
@@ -165,6 +173,10 @@ func _catalog_result() -> Dictionary:
 
 func _on_back() -> void:
 	back_count += 1
+
+
+func _on_season_view_requested(season_id: String) -> void:
+	requested_ids.append(season_id)
 
 
 func _check(condition: bool, description: String) -> void:

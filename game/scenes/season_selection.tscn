@@ -111,11 +111,11 @@ layout_mode = 2
 focus_mode = 2
 text = "Volver al menú"
 
-[node name="StartButton" type="Button" parent="Margin/Panel/Content/Actions"]
+[node name="ConsultButton" type="Button" parent="Margin/Panel/Content/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 42)
+custom_minimum_size = Vector2(190, 42)
 layout_mode = 2
 focus_mode = 2
 disabled = true
 theme_override_styles/normal = SubResource("StyleButton")
-text = "Iniciar temporada"
+text = "Consultar temporada"

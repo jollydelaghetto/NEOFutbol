@@ -123,8 +123,11 @@ func _test_season_selection_navigation(menu) -> void:
 		"la vista instanciada es SeasonSelection")
 	_check(selection_view.get_node("%SeasonList").item_count == 29,
 		"el menú presenta las 29 temporadas")
-	_check(selection_view.get_node("%StartButton").disabled,
-		"el pack incompleto no se puede iniciar desde el menú")
+	_check(selection_view.get_node("%ConsultButton").disabled,
+		"el pack incompleto no se puede consultar desde el menú")
+	_check(selection_view.season_view_requested.is_connected(
+		menu._on_historical_season_requested),
+		"el menú consume las solicitudes de consulta histórica")
 	for repetition in 6:
 		menu.selection_button.pressed.emit()
 	_check(menu.season_host.get_child_count() == 1,

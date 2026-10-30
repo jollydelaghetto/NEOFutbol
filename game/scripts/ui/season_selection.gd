@@ -24,6 +24,7 @@ func _ready() -> void:
 	season_list.item_selected.connect(_on_season_selected)
 	consult_button.pressed.connect(_on_consult_pressed)
 	back_button.pressed.connect(_on_back_pressed)
+	_configure_focus_navigation()
 	refresh_catalog()
 
 
@@ -109,10 +110,12 @@ func set_request_in_progress(in_progress: bool) -> void:
 	_request_in_progress = in_progress
 	if in_progress:
 		consult_button.disabled = true
+		_update_focus_navigation()
 		return
 	var selected = season_list.get_selected_items()
 	consult_button.disabled = selected.is_empty() \
 		or not _seasons[selected[0]].playable
+	_update_focus_navigation()
 
 
 func show_request_errors(errors: Array) -> void:
@@ -131,10 +134,12 @@ func _update_selected_state(index: int) -> void:
 		status_label.text = "Seleccione una temporada."
 		details_label.text = ""
 		consult_button.disabled = true
+		_update_focus_navigation()
 		return
 	var season = _seasons[index]
 	status_label.text = "%s · %s" % [season.label, _display_status(season)]
 	consult_button.disabled = not season.playable
+	_update_focus_navigation()
 	if not season.missing_content.is_empty():
 		details_label.text = "Contenido pendiente: %s" % ", ".join(season.missing_content)
 	elif not season.diagnostics.is_empty():
@@ -160,6 +165,7 @@ func _show_catalog_error(errors: Array) -> void:
 	status_label.text = "No se pudo consultar el catálogo."
 	details_label.text = "Puede volver al menú y seguir usando la demostración."
 	consult_button.disabled = true
+	_update_focus_navigation()
 	var message = "Error desconocido"
 	if not errors.is_empty() and errors[0] is Dictionary:
 		message = errors[0].get("message", message)
@@ -170,6 +176,29 @@ func _show_catalog_error(errors: Array) -> void:
 func _clear_error() -> void:
 	error_label.text = ""
 	error_label.visible = false
+
+
+func focus_initial_control() -> void:
+	if season_list.item_count > 0:
+		season_list.grab_focus()
+	else:
+		back_button.grab_focus()
+
+
+func _configure_focus_navigation() -> void:
+	consult_button.focus_next = consult_button.get_path_to(back_button)
+	consult_button.focus_previous = consult_button.get_path_to(season_list)
+	back_button.focus_next = back_button.get_path_to(season_list)
+	_update_focus_navigation()
+
+
+func _update_focus_navigation() -> void:
+	var next_control: Control = back_button if consult_button.disabled else consult_button
+	season_list.focus_next = season_list.get_path_to(next_control)
+	season_list.focus_previous = season_list.get_path_to(back_button)
+	back_button.focus_previous = back_button.get_path_to(
+		season_list if consult_button.disabled else consult_button
+	)
 
 
 func _failure(code: String, message: String) -> Dictionary:

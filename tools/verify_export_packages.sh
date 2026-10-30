@@ -36,13 +36,27 @@ reject_errors() {
   fi
 }
 
+run_logged() {
+  local log_file="$1"
+  shift
+  local status
+  set +e
+  "$@" >"$log_file" 2>&1
+  status=$?
+  set -e
+  if (( status != 0 )); then
+    cat "$log_file" >&2
+    fail "El comando terminó con código $status; consulte $log_file"
+  fi
+  reject_errors "$log_file"
+}
+
 export_zip() {
   local preset="$1"
   local archive="$2"
   local log_file="$3"
-  "$godot_bin" --headless --path "$project_root" \
-    --export-pack "$preset" "$archive" >"$log_file" 2>&1
-  reject_errors "$log_file"
+  run_logged "$log_file" "$godot_bin" --headless --path "$project_root" \
+    --export-pack "$preset" "$archive"
   [[ -s "$archive" ]] || fail "No se generó el paquete $archive"
   unzip -tq "$archive" >/dev/null || fail "El ZIP $archive no es íntegro"
 }
@@ -74,8 +88,7 @@ run_exported() {
   local executable="$2"
   shift 2
   local log_file="$output_root/$label.log"
-  "$executable" --headless --quit-after 30 "$@" >"$log_file" 2>&1
-  reject_errors "$log_file"
+  run_logged "$log_file" "$executable" --headless --quit-after 30 "$@"
 }
 
 rm -rf "$output_root"
@@ -130,13 +143,12 @@ if [[ "${VERIFY_RELEASE_BINARIES:-0}" == "1" ]]; then
   mkdir -p "$public_dir" "$development_dir"
   public_binary="$public_dir/NEOFutbol.x86_64"
   development_binary="$development_dir/NEOFutbol-dev.x86_64"
-  "$godot_bin" --headless --path "$project_root" --export-release \
-    "$public_preset" "$public_binary" >"$output_root/public-release.log" 2>&1
-  reject_errors "$output_root/public-release.log"
-  "$godot_bin" --headless --path "$project_root" --export-release \
-    "$development_preset" "$development_binary" \
-    >"$output_root/development-release.log" 2>&1
-  reject_errors "$output_root/development-release.log"
+  run_logged "$output_root/public-release.log" \
+    "$godot_bin" --headless --path "$project_root" --export-release \
+    "$public_preset" "$public_binary"
+  run_logged "$output_root/development-release.log" \
+    "$godot_bin" --headless --path "$project_root" --export-release \
+    "$development_preset" "$development_binary"
   [[ -x "$public_binary" && -s "$public_dir/NEOFutbol.pck" ]] \
     || fail "La exportación pública no produjo ejecutable y PCK"
   [[ -x "$development_binary" && -s "$development_dir/NEOFutbol-dev.pck" ]] \

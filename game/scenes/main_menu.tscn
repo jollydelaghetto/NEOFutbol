@@ -173,6 +173,15 @@ theme_override_font_sizes/font_size = 17
 theme_override_styles/normal = SubResource("StyleButton")
 text = "Demostración de temporada"
 
+[node name="SelectionButton" type="Button" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 50)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 2
+theme_override_styles/normal = SubResource("StyleButton")
+text = "Seleccionar temporada"
+
 [node name="SyntheticNotice" type="Label" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
 unique_name_in_owner = true
 layout_mode = 2

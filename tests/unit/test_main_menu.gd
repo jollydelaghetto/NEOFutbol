@@ -4,6 +4,8 @@ const MenuScene = preload("res://game/scenes/main_menu.tscn")
 const MenuScript = preload("res://game/scripts/ui/main_menu.gd")
 const SeasonScene = preload("res://game/scenes/season_overview.tscn")
 const SeasonScript = preload("res://game/scripts/ui/season_overview.gd")
+const SelectionScene = preload("res://game/scenes/season_selection.tscn")
+const SelectionScript = preload("res://game/scripts/ui/season_selection.gd")
 const Controller = preload("res://game/scripts/services/season_controller.gd")
 const Club = preload("res://game/scripts/data/club_season.gd")
 const Fixture = preload("res://game/scripts/data/match_fixture.gd")
@@ -31,6 +33,7 @@ func _run() -> void:
 
 	_test_initial_screen(menu)
 	await _test_basic_navigation(menu)
+	await _test_season_selection_navigation(menu)
 	await _test_repeated_navigation(menu)
 	await _test_instantiation_failure(menu)
 
@@ -54,7 +57,9 @@ func _test_initial_screen(menu) -> void:
 	_check(menu.get_node("%ProjectSubtitle").text.contains(
 		"gestión futbolística histórica"), "muestra el subtítulo del proyecto")
 	_check(menu.get_node("%DemoButton").text == "Demostración de temporada",
-		"ofrece únicamente la demostración implementada")
+		"conserva la demostración implementada")
+	_check(menu.get_node("%SelectionButton").text == "Seleccionar temporada",
+		"ofrece el selector histórico")
 	_check(menu.get_node("%SyntheticNotice").text.contains("datos ficticios"),
 		"avisa de los datos ficticios")
 	_check(menu.get_node("%DevelopmentStatus").text.contains("desarrollo"),
@@ -62,9 +67,11 @@ func _test_initial_screen(menu) -> void:
 	_check(menu.menu_presentation.visible and not menu.season_host.visible
 		and not menu.back_button.visible, "presenta inicialmente el menú activo")
 	_check(menu.demo_button.focus_mode == Control.FOCUS_ALL
+		and menu.selection_button.focus_mode == Control.FOCUS_ALL
 		and menu.back_button.focus_mode == Control.FOCUS_ALL,
 		"los controles admiten foco de teclado")
 	_check(menu.demo_button.pressed.is_connected(menu._on_demo_button_pressed)
+		and menu.selection_button.pressed.is_connected(menu._on_selection_button_pressed)
 		and menu.back_button.pressed.is_connected(menu._on_back_button_pressed),
 		"la navegación está conectada a señales de controles")
 
@@ -102,6 +109,44 @@ func _test_basic_navigation(menu) -> void:
 		"permite una segunda apertura")
 	_check(menu.season_host.get_child(0).get_instance_id() != first_instance_id,
 		"la segunda apertura usa una instancia nueva")
+	menu.back_button.pressed.emit()
+	await process_frame
+
+
+func _test_season_selection_navigation(menu) -> void:
+	menu.selection_button.pressed.emit()
+	await process_frame
+	_check(menu.season_host.get_child_count() == 1
+		and menu._selection_view != null, "abre una única vista de selección")
+	var selection_view = menu.season_host.get_child(0)
+	_check(selection_view.get_script() == SelectionScript,
+		"la vista instanciada es SeasonSelection")
+	_check(selection_view.get_node("%SeasonList").item_count == 29,
+		"el menú presenta las 29 temporadas")
+	_check(selection_view.get_node("%StartButton").disabled,
+		"el pack incompleto no se puede iniciar desde el menú")
+	for repetition in 6:
+		menu.selection_button.pressed.emit()
+	_check(menu.season_host.get_child_count() == 1,
+		"pulsaciones repetidas no duplican el selector")
+	selection_view.get_node("%BackButton").pressed.emit()
+	_check(menu.season_host.get_child_count() == 0 and menu._selection_view == null,
+		"el retorno propio retira el selector")
+	await process_frame
+	_check(not is_instance_valid(selection_view) and menu.menu_presentation.visible,
+		"el retorno propio libera la vista y restaura el menú")
+
+	menu.selection_button.pressed.emit()
+	await process_frame
+	_check(menu.season_host.get_child_count() == 1,
+		"permite volver a abrir el selector")
+	menu.back_button.pressed.emit()
+	await process_frame
+	menu.demo_button.pressed.emit()
+	await process_frame
+	_check(menu.season_host.get_child_count() == 1
+		and menu.season_host.get_child(0).get_script() == SeasonScript,
+		"la demostración sigue disponible después del selector")
 	menu.back_button.pressed.emit()
 	await process_frame
 
@@ -147,6 +192,16 @@ func _test_instantiation_failure(menu) -> void:
 		"un fallo mantiene disponible el menú")
 	_check(not menu.demo_button.disabled,
 		"un fallo no bloquea nuevas acciones")
+
+	menu.selection_scene = null
+	menu.selection_button.pressed.emit()
+	await process_frame
+	_check(menu.error_label.visible
+		and menu.error_label.text.contains("selection_scene_unavailable"),
+		"muestra un error explícito si falta el selector")
+	_check(menu.menu_presentation.visible and not menu.selection_button.disabled,
+		"el fallo del selector conserva el menú utilizable")
+	menu.selection_scene = SelectionScene
 
 	menu.season_scene = SeasonScene
 	menu.demo_button.pressed.emit()

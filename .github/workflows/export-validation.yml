@@ -1,0 +1,89 @@
+name: Export Validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-exports:
+    name: Verify public and development Linux exports
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install verified Godot 4.7.2
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/Godot_v4.7.2-stable_linux.x86_64.zip"
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 300 \
+            --output "$archive" \
+            'https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip'
+          echo "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4  $archive" \
+            | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/godot/bin"
+          unzip -q "$archive" -d "$RUNNER_TEMP/godot"
+          install -m 755 \
+            "$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64" \
+            "$RUNNER_TEMP/godot/bin/godot"
+          echo "$RUNNER_TEMP/godot/bin" >> "$GITHUB_PATH"
+
+      - name: Install verified Linux export templates
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/Godot_v4.7.2-stable_export_templates.tpz"
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 1200 \
+            --output "$archive" \
+            'https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz'
+          echo "f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011  $archive" \
+            | sha256sum --check --strict
+          template_dir="$RUNNER_TEMP/xdg/data/godot/export_templates/4.7.2.stable"
+          mkdir -p "$template_dir"
+          unzip -j -q "$archive" \
+            templates/linux_debug.x86_64 \
+            templates/linux_release.x86_64 \
+            -d "$template_dir"
+          chmod +x "$template_dir"/linux_*.x86_64
+          test -x "$template_dir/linux_debug.x86_64"
+          test -x "$template_dir/linux_release.x86_64"
+
+      - name: Import project
+        run: |
+          set -euo pipefail
+          godot --headless --path . --import \
+            --log-file "$RUNNER_TEMP/import.log" \
+            >"$RUNNER_TEMP/import-output.log" 2>&1
+          cat "$RUNNER_TEMP/import-output.log"
+          if grep -Eq '^(SCRIPT ERROR:|ERROR:)' "$RUNNER_TEMP/import-output.log"; then
+            exit 1
+          fi
+
+      - name: Build and inspect both export variants
+        env:
+          GODOT_BIN: godot
+          VERIFY_RELEASE_BINARIES: "1"
+          XDG_CONFIG_HOME: ${{ runner.temp }}/xdg/config
+          XDG_DATA_HOME: ${{ runner.temp }}/xdg/data
+          XDG_CACHE_HOME: ${{ runner.temp }}/xdg/cache
+        run: |
+          set -euo pipefail
+          mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+          tools/verify_export_packages.sh "$RUNNER_TEMP/verified-exports"
+          preservation_log="$RUNNER_TEMP/export-preservation-test.log"
+          tests/tools/test_verify_export_packages.sh | tee "$preservation_log"
+          grep -Fqx \
+            'PASS: archivos preexistentes y raíz del repositorio preservados' \
+            "$preservation_log"

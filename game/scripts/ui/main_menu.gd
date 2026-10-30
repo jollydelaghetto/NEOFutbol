@@ -8,6 +8,10 @@ const DEFAULT_SEASON_ROOT = "res://data/seasons"
 const DEVELOPMENT_SEASON_ROOT = "res://data/dev/seasons"
 const DEVELOPMENT_ARGUMENT = "--dev-season-pack"
 const DEVELOPMENT_WARNING = "MODO DESARROLLO — DATOS SINTÉTICOS"
+const DEVELOPMENT_SEASON_ID = "1982-83"
+const DEVELOPMENT_REQUIRED_FILES = [
+	"manifest.json", "rules.json", "clubs.json", "players.json", "fixtures.json",
+]
 
 @export var season_scene: PackedScene = DEFAULT_SEASON_SCENE
 @export var selection_scene: PackedScene = DEFAULT_SELECTION_SCENE
@@ -27,6 +31,8 @@ var _transition_in_progress := false
 var _historical_view_active := false
 var _historical_season_id := ""
 var _development_season_pack_active := false
+var _development_pack_request_rejected := false
+var development_season_root_path := DEVELOPMENT_SEASON_ROOT
 var command_line_user_args: PackedStringArray = OS.get_cmdline_user_args()
 var session_loader = SessionLoader.new()
 
@@ -299,13 +305,35 @@ func _show_menu_state() -> void:
 ## El modo de desarrollo solo se activa con un argumento de usuario separado
 ## de las opciones del motor mediante `--`. Repetir el argumento es idempotente.
 func _configure_runtime_mode(user_args: PackedStringArray) -> void:
-	_development_season_pack_active = DEVELOPMENT_ARGUMENT in user_args
+	var development_requested = DEVELOPMENT_ARGUMENT in user_args
+	_development_season_pack_active = development_requested \
+		and _development_pack_available()
+	_development_pack_request_rejected = development_requested \
+		and not _development_season_pack_active
 	if _development_season_pack_active:
-		season_root_path = DEVELOPMENT_SEASON_ROOT
-	elif season_root_path == DEVELOPMENT_SEASON_ROOT:
+		season_root_path = development_season_root_path
+	elif season_root_path in [DEVELOPMENT_SEASON_ROOT, development_season_root_path]:
 		# Evita que una ruta guardada en la escena active el pack silenciosamente.
 		season_root_path = DEFAULT_SEASON_ROOT
 	development_mode_banner.visible = _development_season_pack_active
+	if _development_pack_request_rejected:
+		_show_development_pack_unavailable()
+
+
+func _development_pack_available() -> bool:
+	var pack_path = development_season_root_path.path_join(DEVELOPMENT_SEASON_ID)
+	for file_name in DEVELOPMENT_REQUIRED_FILES:
+		if not FileAccess.file_exists(pack_path.path_join(file_name)):
+			return false
+	return true
+
+
+func _show_development_pack_unavailable() -> void:
+	error_label.text = (
+		"development_pack_unavailable: El pack sintético no está incluido en "
+		+ "esta variante. Se mantiene el catálogo histórico."
+	)
+	error_label.visible = true
 
 
 func _show_failure(code: String, message: String) -> Dictionary:
@@ -316,6 +344,9 @@ func _show_failure(code: String, message: String) -> Dictionary:
 
 
 func _clear_error() -> void:
+	if _development_pack_request_rejected:
+		_show_development_pack_unavailable()
+		return
 	error_label.text = ""
 	error_label.visible = false
 

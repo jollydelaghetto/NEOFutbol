@@ -120,6 +120,37 @@ func _run() -> void:
 	normal_menu.queue_free()
 	await process_frame
 
+	var unavailable_menu = MenuScene.instantiate()
+	unavailable_menu.development_season_root_path = "res://data/dev/unavailable"
+	unavailable_menu.command_line_user_args = PackedStringArray(["--dev-season-pack"])
+	root.add_child(unavailable_menu)
+	await process_frame
+	_check(not unavailable_menu._development_season_pack_active
+		and unavailable_menu._development_pack_request_rejected
+		and unavailable_menu.season_root_path == "res://data/seasons",
+		"un pack ausente rechaza el modo y conserva la raíz histórica")
+	_check(unavailable_menu.error_label.visible
+		and unavailable_menu.error_label.text.contains("development_pack_unavailable")
+		and not unavailable_menu.development_mode_banner.visible,
+		"el rechazo se comunica sin presentar datos sintéticos")
+	unavailable_menu.selection_button.pressed.emit()
+	await process_frame
+	_check(unavailable_menu._selection_view != null
+		and unavailable_menu._selection_view.catalog_root_path == "res://data/seasons"
+		and unavailable_menu._selection_view.season_list.item_count == 29,
+		"la variante sin pack mantiene utilizable el catálogo de 29 temporadas")
+	unavailable_menu.back_button.pressed.emit()
+	await process_frame
+	unavailable_menu.demo_button.pressed.emit()
+	await process_frame
+	_check(unavailable_menu._season_view != null
+		and unavailable_menu._season_view.synthetic_badge.visible,
+		"el rechazo del pack no bloquea la demostración independiente")
+	unavailable_menu.back_button.pressed.emit()
+	await process_frame
+	unavailable_menu.queue_free()
+	await process_frame
+
 	var menu = MenuScene.instantiate()
 	menu.command_line_user_args = PackedStringArray([
 		"--dev-season-pack", "--dev-season-pack"

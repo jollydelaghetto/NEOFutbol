@@ -65,17 +65,69 @@ consulta deportiva. El flujo de demostración continúa siendo independiente.
 
 La consulta no crea una carrera, no añade resultados y no guarda una partida.
 
-## Exportación y límites
+## Exportaciones pública y de desarrollo
+
+El proyecto define dos presets Linux:
+
+- `Linux-Public`: incluye los JSON existentes de `data/seasons/` y excluye
+  completamente `data/dev/`, pruebas, herramientas y documentación.
+- `Linux-Development`: incluye los JSON históricos y los cinco JSON del pack
+  permanente, pero también excluye pruebas, herramientas y documentación.
+
+Las salidas predeterminadas son diferentes:
+
+- `build/public/NEOFutbol.x86_64`
+- `build/development/NEOFutbol-dev.x86_64`
+
+El argumento `--dev-season-pack` no basta por sí solo para activar el modo. El
+menú comprueba primero que estén disponibles `manifest.json`, `rules.json`,
+`clubs.json`, `players.json` y `fixtures.json` bajo la raíz de desarrollo. Si
+falta cualquiera, conserva `res://data/seasons`, no muestra la advertencia
+sintética y comunica `development_pack_unavailable`. Así, una exportación
+pública sigue siendo utilizable aunque reciba el argumento por error.
+
+## Verificación reproducible de paquetes
+
+`tools/verify_export_packages.sh` utiliza ambos presets para generar ZIP de
+datos reales mediante `--export-pack`, inspecciona sus listados y comprueba:
+
+- que ambos contienen los recursos del juego y todos los JSON históricos que
+  existen en el árbol fuente;
+- que el paquete público no contiene ninguna ruta `data/dev/`;
+- que el paquete de desarrollo contiene los cinco JSON sintéticos;
+- que pruebas y herramientas no se distribuyen en ninguna variante.
+
+Desde la raíz del repositorio:
+
+```bash
+GODOT_BIN=/ruta/a/Godot_v4.7.2-stable_linux.x86_64 \
+  tools/verify_export_packages.sh /tmp/neofutbol-exports
+```
+
+Los ZIP son paquetes de proyecto generados por Godot con los mismos presets y
+filtros usados para los PCK. Son inspeccionables con `unzip -Z1`. Si también
+están instaladas las plantillas oficiales de exportación 4.7.2, se pueden
+generar y arrancar los ejecutables y PCK Linux con:
+
+```bash
+GODOT_BIN=/ruta/a/Godot_v4.7.2-stable_linux.x86_64 \
+VERIFY_RELEASE_BINARIES=1 \
+  tools/verify_export_packages.sh /tmp/neofutbol-exports
+```
+
+El workflow `Export Validation` descarga y verifica tanto Godot como las
+plantillas oficiales, genera las dos variantes, examina sus ZIP equivalentes y
+arranca cada ejecutable con y sin `--dev-season-pack`. No publica artefactos ni
+crea releases.
+
+El pack histórico `data/seasons/1982-83` sigue incompleto por diseño y no
+contiene `fixtures.json`. La comprobación exige sus cuatro JSON presentes y
+todos los demás JSON históricos que se añadan al repositorio; no inventa el
+archivo ausente ni modifica datos históricos.
+
+## Límites de la validación
 
 Las pruebas headless comprueban carga, navegación, etiquetas, clasificación,
-calendario y retornos; no validan composición visual, contraste ni tamaños en
-una ventana real.
-
-Godot trata los JSON leídos con `FileAccess` como archivos de datos del pack.
-Antes de distribuir una exportación debe verificarse que el preset incluya
-explícitamente los JSON necesarios como recursos no importados. El preset
-actual usa `export_filter="all_resources"` y no declara un `include_filter`;
-esta tarea no cambia la configuración de exportación. También debe decidirse
-si un build público debe excluir `data/dev/` o incluirlo solo en artefactos de
-desarrollo. La activación por argumento no sustituye esa política de
-empaquetado.
+calendario, contenido de paquetes y retornos; no validan composición visual,
+contraste ni tamaños en una ventana real. Los paquetes generados por CI son
+temporales y se eliminan con el runner.

@@ -45,16 +45,31 @@ func get_catalog(root_path: String = DEFAULT_ROOT) -> Dictionary:
 	}
 
 
+## Relee y prepara un pack sin confiar en consultas anteriores del catálogo.
+## Esta API es la fuente única de los criterios de aptitud deportiva usados
+## también por SeasonSessionLoader. Nunca devuelve un controlador parcial.
+func prepare_playable_pack(season_id: String, root_path: String = DEFAULT_ROOT) -> Dictionary:
+	var identifier = _validate_season_id(season_id)
+	if not identifier.ok:
+		return identifier
+	var directory_path = root_path.path_join(season_id)
+	var missing_content = _missing_required_files(directory_path)
+	if not missing_content.is_empty():
+		var result = _failure("missing_required_files",
+			"El pack no contiene todos los archivos obligatorios.")
+		result.errors[0]["missing_content"] = missing_content
+		result.errors[0]["pack_path"] = directory_path
+		return result
+	var parsed = _parse_pack(directory_path, season_id)
+	if not parsed.ok:
+		return parsed
+	return _prepare_validated_pack(parsed.data, season_id, directory_path)
+
+
 func _inspect_season(root_path: String, season_id: String) -> Dictionary:
 	var directory_path = root_path.path_join(season_id)
-	var missing_content: Array[String] = []
-	var present_count = 0
-	for file_name in REQUIRED_FILES:
-		var file_path = directory_path.path_join(file_name)
-		if FileAccess.file_exists(file_path):
-			present_count += 1
-		else:
-			missing_content.append(file_name)
+	var missing_content = _missing_required_files(directory_path)
+	var present_count = REQUIRED_FILES.size() - missing_content.size()
 	var discovered = DirAccess.dir_exists_absolute(directory_path) or present_count > 0
 	var entry = {
 		"season_id": season_id,
@@ -90,7 +105,7 @@ func _inspect_season(root_path: String, season_id: String) -> Dictionary:
 	entry.provenance_declared = not parsed.data.manifest.sources.is_empty() \
 		and not parsed.data.manifest.checksum.is_empty()
 
-	var readiness = _verify_playability(parsed.data, season_id)
+	var readiness = _prepare_validated_pack(parsed.data, season_id, directory_path)
 	if not readiness.ok:
 		entry.status_code = "validated_not_playable"
 		entry.status_label = "Datos validados; inicio no disponible"
@@ -159,7 +174,8 @@ func _parse_pack(directory_path: String, season_id: String) -> Dictionary:
 ## La validación del pack no implica que pueda iniciarse. Para declararlo
 ## jugable se exige trazabilidad declarada, contenido deportivo no vacío y una
 ## selección exacta que la API pública de SeasonController acepte.
-func _verify_playability(pack: Dictionary, season_id: String) -> Dictionary:
+func _prepare_validated_pack(pack: Dictionary, season_id: String,
+		directory_path: String) -> Dictionary:
 	if pack.manifest.sources.is_empty() or pack.manifest.checksum.is_empty():
 		return _failure("missing_provenance",
 			"El manifest no declara fuentes y checksum suficientes.")
@@ -180,28 +196,71 @@ func _verify_playability(pack: Dictionary, season_id: String) -> Dictionary:
 		return _failure("incomplete_competition_rules",
 			"Faltan los desempates o el formato de competición.")
 
-	var selected_fixture = null
+	var selections: Array[Dictionary] = []
 	for fixture in pack.fixtures:
 		if fixture.competition_id == rules.competition_id:
 			if fixture.home_club_id == null or fixture.away_club_id == null:
 				return _failure("incomplete_fixture_clubs",
 					"Un partido de la competición no identifica ambos clubes.")
-			selected_fixture = fixture
-	if selected_fixture == null:
+			var candidate = {
+				"season_id": season_id,
+				"competition_id": rules.competition_id,
+				"stage_id": fixture.stage_id,
+				"group_id": fixture.group_id,
+			}
+			if not candidate in selections:
+				selections.append(candidate)
+	if selections.is_empty():
 		return _failure("calendar_without_rules",
 			"Ningún partido corresponde a la competición de las reglas.")
-	var selection = {
-		"season_id": season_id,
-		"competition_id": rules.competition_id,
-		"stage_id": selected_fixture.stage_id,
-		"group_id": selected_fixture.group_id,
-	}
-	var initialized = Controller.new().initialize(
+	if selections.size() > 1:
+		var ambiguous = _failure("ambiguous_sporting_selection",
+			"El pack contiene varias fases o grupos compatibles con las mismas reglas.")
+		ambiguous.errors[0]["selection_count"] = selections.size()
+		return ambiguous
+	var selection = selections[0]
+	var controller = Controller.new()
+	var initialized = controller.initialize(
 		pack.clubs, pack.fixtures, rules, selection
 	)
 	if not initialized.ok:
 		return {"ok": false, "data": null, "errors": initialized.errors.duplicate(true)}
-	return {"ok": true, "data": {"selection": selection}, "errors": []}
+	return {
+		"ok": true,
+		"data": {
+			"season_id": season_id,
+			"selection": selection.duplicate(true),
+			"controller": controller,
+			"manifest": pack.manifest,
+			"clubs": pack.clubs,
+			"players": pack.players,
+			"rules": pack.rules,
+			"fixtures": pack.fixtures,
+			"pack_path": directory_path,
+		},
+		"errors": [],
+	}
+
+
+func _validate_season_id(season_id: String) -> Dictionary:
+	var format = RegEx.new()
+	format.compile("^[0-9]{4}-[0-9]{2}$")
+	if format.search(season_id) == null:
+		return _failure("invalid_season_id",
+			"El identificador de temporada no tiene el formato permitido.")
+	for start_year in range(FIRST_START_YEAR, LAST_START_YEAR + 1):
+		if season_id == _season_id(start_year):
+			return {"ok": true, "data": season_id, "errors": []}
+	return _failure("season_out_of_horizon",
+		"La temporada no pertenece al horizonte 1982-83 a 2010-11.")
+
+
+func _missing_required_files(directory_path: String) -> Array[String]:
+	var missing: Array[String] = []
+	for file_name in REQUIRED_FILES:
+		if not FileAccess.file_exists(directory_path.path_join(file_name)):
+			missing.append(file_name)
+	return missing
 
 
 func _season_id(start_year: int) -> String:

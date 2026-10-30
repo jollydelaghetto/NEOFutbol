@@ -80,6 +80,26 @@ func _initialize() -> void:
 		and complete.diagnostics.is_empty(), "estado jugable limpio")
 	var repeated = Catalog.new().get_catalog(temporary_root)
 	_check(repeated == complete_result, "catálogo determinista")
+	var prepared = Catalog.new().prepare_playable_pack("1982-83", temporary_root)
+	_check(prepared.ok and prepared.data.selection == {
+		"season_id": "1982-83", "competition_id": "league",
+		"stage_id": "regular", "group_id": null,
+	}, "API compartida prepara la selección exacta")
+	_check(prepared.data.controller != null and prepared.data.fixtures.size() == 1,
+		"API compartida prepara controlador y calendario")
+	var unsafe = Catalog.new().prepare_playable_pack("1982-83/../../tmp", temporary_root)
+	_check(not unsafe.ok and unsafe.data == null
+		and unsafe.errors[0].code == "invalid_season_id",
+		"API compartida rechaza traversal")
+
+	var second_selection = _fixture()
+	second_selection.fixture_id = "fixture_2"
+	second_selection.stage_id = "playoff"
+	_write_json(pack_path.path_join("fixtures.json"), [_fixture(), second_selection])
+	var ambiguous = Catalog.new().get_catalog(temporary_root).data.seasons[0]
+	_check(ambiguous.data_validated and not ambiguous.playable
+		and ambiguous.diagnostics[0].code == "ambiguous_sporting_selection",
+		"varias fases compatibles no se eligen arbitrariamente")
 
 	# Una referencia exacta rota invalida el pack antes de probar la sesión.
 	var broken_fixture = _fixture()

@@ -90,9 +90,14 @@ func _run() -> void:
 		"la consulta histórica no se presenta como demostración sintética")
 	_check(_tree_row_count(historical_view.standings_tree) == 2,
 		"la clasificación usa los dos clubes del pack")
+	_check(_tree_column_texts(historical_view.standings_tree, 1) == ["club_a", "club_b"],
+		"sin display_name conserva los identificadores como fallback visible")
 	_check(historical_view.round_selector.item_count == 1
 		and historical_view._fixtures.size() == 1,
 		"presenta el calendario del pack")
+	_check(_visible_match_text(historical_view).contains("club_a")
+		and _visible_match_text(historical_view).contains("club_b"),
+		"el calendario tampoco inventa nombres históricos ausentes")
 	var context = historical_view._controller.get_session_context()
 	_check(context.ok and context.data.selection == {
 		"season_id": "1982-83", "competition_id": "league_1982-83",
@@ -223,6 +228,24 @@ func _tree_row_count(tree: Tree) -> int:
 		count += 1
 		item = item.get_next()
 	return count
+
+
+func _tree_column_texts(tree: Tree, column: int) -> Array[String]:
+	var values: Array[String] = []
+	var item = tree.get_root().get_first_child() if tree.get_root() != null else null
+	while item != null:
+		values.append(item.get_text(column))
+		item = item.get_next()
+	return values
+
+
+func _visible_match_text(view: Node) -> String:
+	for panel in view.match_list.get_children():
+		if panel.has_meta("fixture_id") and panel.get_child_count() > 0:
+			var row = panel.get_child(0)
+			if row.get_child_count() > 1:
+				return row.get_child(1).text
+	return ""
 
 
 func _write_valid_pack() -> void:

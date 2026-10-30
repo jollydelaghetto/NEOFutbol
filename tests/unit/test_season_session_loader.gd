@@ -3,6 +3,7 @@ extends SceneTree
 const Loader = preload("res://game/scripts/services/season_session_loader.gd")
 const Catalog = preload("res://game/scripts/services/season_catalog_service.gd")
 const Controller = preload("res://game/scripts/services/season_controller.gd")
+const Club = preload("res://game/scripts/data/club_season.gd")
 const Fixture = preload("res://game/scripts/data/match_fixture.gd")
 
 const SAVE_DIRECTORY = "user://neofutbol/sporting_state"
@@ -122,7 +123,82 @@ func _initialize() -> void:
 		and first.data.calendar[0] is Fixture, "calendario tipado devuelto")
 	_check(first.data.presentation == {
 		"season_name": "1982-83", "competition_name": "league_1982-83",
+		"club_names": {},
 	}, "metadatos de presentación derivados")
+
+	# Los nombres son metadatos opcionales: se conservan exactamente cuando son
+	# válidos y cualquier valor no presentable deja activo el fallback por ID.
+	_write_json(pack_path.path_join("clubs.json"), [
+		{"club_id": "club_a", "season_id": "1982-83", "division_id": "first",
+			"display_name": "Águilas del Norte"},
+		{"club_id": "club_b", "season_id": "1982-83", "division_id": "first",
+			"display_name": "Águilas del Norte"},
+	])
+	var named = loader.prepare_session("1982-83", temporary_root)
+	_check(named.ok and named.data.presentation.club_names == {
+		"club_a": "Águilas del Norte", "club_b": "Águilas del Norte",
+	}, "conserva Unicode y permite nombres visuales duplicados sin alterar IDs")
+	_check(named.data.controller.get_standings().data.rows.map(
+		func(row): return row.club_id
+	) == ["club_a", "club_b"], "los nombres no sustituyen identificadores deportivos")
+
+	var invalid_names: Array = [null, 7, "", "   ", "Nombre\ninválido", "Control\u0085"]
+	for invalid_name in invalid_names:
+		_write_json(pack_path.path_join("clubs.json"), [
+			{"club_id": "club_a", "season_id": "1982-83", "division_id": "first",
+				"display_name": invalid_name},
+			{"club_id": "club_b", "season_id": "1982-83", "division_id": "first"},
+		])
+		var invalid_metadata = loader.prepare_session("1982-83", temporary_root)
+		_check(invalid_metadata.ok and invalid_metadata.data.presentation.club_names.is_empty(),
+			"display_name inválido se omite sin invalidar la sesión: %s" % invalid_name)
+
+	_write_json(pack_path.path_join("clubs.json"), [
+		{"club_id": "club_a", "season_id": "1982-83", "division_id": "first",
+			"display_name": " Club A conservado "},
+		{"club_id": "club_b", "season_id": "1982-83", "division_id": "first",
+			"display_name": "Club B"},
+		{"club_id": "club_unknown", "season_id": "1982-83", "division_id": "first",
+			"display_name": "No permitido"},
+		{"club_id": "club_a", "season_id": "1983-84", "division_id": "first",
+			"display_name": "Otra temporada"},
+	])
+	var allowed_clubs: Array = []
+	for club_id in ["club_a", "club_b"]:
+		var allowed_club = Club.new()
+		allowed_club.club_id = club_id
+		allowed_club.season_id = "1982-83"
+		allowed_clubs.append(allowed_club)
+	var exact_names = loader._load_club_names(
+		pack_path.path_join("clubs.json"), allowed_clubs
+	)
+	_check(exact_names.ok and exact_names.data == {
+		"club_a": " Club A conservado ", "club_b": "Club B",
+	}, "filtra por identidad exacta y no normaliza el nombre visible")
+	var missing_metadata = loader._load_club_names(
+		pack_path.path_join("missing-clubs.json"), []
+	)
+	_check(not missing_metadata.ok
+		and missing_metadata.errors[0].code == "display_metadata_file_open",
+		"localiza un fallo al releer los metadatos")
+	_write_text(pack_path.path_join("invalid-display.json"), "[ invalid")
+	var malformed_metadata = loader._load_club_names(
+		pack_path.path_join("invalid-display.json"), []
+	)
+	_check(not malformed_metadata.ok
+		and malformed_metadata.errors[0].code == "display_metadata_json_syntax"
+		and malformed_metadata.errors[0].file == pack_path.path_join("invalid-display.json")
+		and malformed_metadata.errors[0].line >= 0,
+		"localiza la sintaxis inválida de metadatos")
+	_write_json(pack_path.path_join("invalid-display.json"), {})
+	var invalid_root = loader._load_club_names(
+		pack_path.path_join("invalid-display.json"), []
+	)
+	_check(not invalid_root.ok
+		and invalid_root.errors[0].code == "display_metadata_invalid_root",
+		"rechaza una raíz de metadatos que no sea una lista")
+	DirAccess.remove_absolute(pack_path.path_join("invalid-display.json"))
+	_write_valid_pack("1982-83")
 	_check(first.data.origin.root_path == temporary_root
 		and first.data.origin.pack_path == pack_path,
 		"origen identifica raíz y pack calculados")

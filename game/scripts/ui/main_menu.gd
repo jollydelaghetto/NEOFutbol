@@ -3,6 +3,7 @@ extends Control
 
 const DEFAULT_SEASON_SCENE = preload("res://game/scenes/season_overview.tscn")
 const DEFAULT_SELECTION_SCENE = preload("res://game/scenes/season_selection.tscn")
+const DEFAULT_OFFICE_SCENE = preload("res://game/scenes/manager_office.tscn")
 const SessionLoader = preload("res://game/scripts/services/season_session_loader.gd")
 const DEFAULT_SEASON_ROOT = "res://data/seasons"
 const DEVELOPMENT_SEASON_ROOT = "res://data/dev/seasons"
@@ -15,23 +16,29 @@ const DEVELOPMENT_REQUIRED_FILES = [
 
 @export var season_scene: PackedScene = DEFAULT_SEASON_SCENE
 @export var selection_scene: PackedScene = DEFAULT_SELECTION_SCENE
+@export var office_scene: PackedScene = DEFAULT_OFFICE_SCENE
 @export var season_root_path := DEFAULT_SEASON_ROOT
 
 @onready var menu_presentation: CenterContainer = %MenuPresentation
 @onready var season_host: MarginContainer = %SeasonHost
 @onready var demo_button: Button = %DemoButton
 @onready var selection_button: Button = %SelectionButton
+@onready var office_button: Button = %OfficeButton
 @onready var back_button: Button = %BackButton
 @onready var error_label: Label = %ErrorLabel
 @onready var development_mode_banner: Label = %DevelopmentModeBanner
 
 var _season_view: Control = null
 var _selection_view: Control = null
+var _office_view: Control = null
 var _transition_in_progress := false
 var _historical_view_active := false
 var _historical_season_id := ""
 var _development_season_pack_active := false
 var _development_pack_request_rejected := false
+var _office_module_active := false
+var _office_module := ""
+var _office_session: Dictionary = {}
 var development_season_root_path := DEVELOPMENT_SEASON_ROOT
 var command_line_user_args: PackedStringArray = OS.get_cmdline_user_args()
 var session_loader = SessionLoader.new()
@@ -41,6 +48,7 @@ func _ready() -> void:
 	_configure_runtime_mode(command_line_user_args)
 	demo_button.pressed.connect(_on_demo_button_pressed)
 	selection_button.pressed.connect(_on_selection_button_pressed)
+	office_button.pressed.connect(_on_office_button_pressed)
 	back_button.pressed.connect(_on_back_button_pressed)
 	_configure_focus_navigation()
 	_show_menu_state()
@@ -63,6 +71,7 @@ func show_season_demo() -> Dictionary:
 	_transition_in_progress = true
 	demo_button.disabled = true
 	selection_button.disabled = true
+	office_button.disabled = true
 	var instance = season_scene.instantiate()
 	if not instance is Control:
 		if instance != null:
@@ -70,6 +79,7 @@ func show_season_demo() -> Dictionary:
 		_transition_in_progress = false
 		demo_button.disabled = false
 		selection_button.disabled = false
+		office_button.disabled = not _development_season_pack_active
 		return _show_failure(
 			"invalid_season_scene",
 			"La demostración no contiene una interfaz válida."
@@ -104,6 +114,7 @@ func show_season_selection(selected_season_id: String = "") -> Dictionary:
 	_transition_in_progress = true
 	demo_button.disabled = true
 	selection_button.disabled = true
+	office_button.disabled = true
 	var instance = selection_scene.instantiate()
 	if not instance is Control:
 		if instance != null:
@@ -111,6 +122,7 @@ func show_season_selection(selected_season_id: String = "") -> Dictionary:
 		_transition_in_progress = false
 		demo_button.disabled = false
 		selection_button.disabled = false
+		office_button.disabled = not _development_season_pack_active
 		return _show_failure(
 			"invalid_selection_scene",
 			"El selector no contiene una interfaz válida."
@@ -134,6 +146,165 @@ func show_season_selection(selected_season_id: String = "") -> Dictionary:
 	if _selection_view.has_method("focus_initial_control"):
 		_selection_view.focus_initial_control()
 	return {"ok": true, "data": {"selection_view": _selection_view}, "errors": []}
+
+
+## Prepara la única sesión sintética autorizada y abre su Despacho. Esta ruta
+## nunca está disponible en el modo normal ni convierte la consulta histórica
+## en una carrera.
+func open_manager_office() -> Dictionary:
+	if _transition_in_progress:
+		return _failure("navigation_in_progress", "Ya hay una navegación en curso.")
+	if not _development_season_pack_active:
+		return _show_failure(
+			"development_mode_required",
+			"El prototipo del Despacho solo está disponible con --dev-season-pack."
+		)
+	var active_view = _active_content_view()
+	if active_view != null:
+		if active_view == _office_view:
+			return {"ok": true, "data": {"office_view": active_view}, "errors": []}
+		return _failure(
+			"content_already_active", "Debe volver al menú antes de abrir el Despacho."
+		)
+	if office_scene == null:
+		return _show_failure("office_scene_unavailable", "No se pudo abrir el Despacho.")
+
+	_transition_in_progress = true
+	demo_button.disabled = true
+	selection_button.disabled = true
+	office_button.disabled = true
+	var prepared = session_loader.prepare_session(DEVELOPMENT_SEASON_ID, season_root_path)
+	if not prepared.ok:
+		_transition_in_progress = false
+		_show_menu_state()
+		return _show_errors(prepared.errors)
+	var instance = office_scene.instantiate()
+	if not instance is Control or not instance.has_method("configure"):
+		if instance != null:
+			instance.free()
+		_transition_in_progress = false
+		return _show_failure("invalid_office_scene", "El Despacho no contiene una interfaz válida.")
+	_office_view = instance
+	_office_view.visible = false
+	season_host.add_child(_office_view)
+	_office_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	await get_tree().process_frame
+	if not is_instance_valid(_office_view) or not _office_view.is_node_ready():
+		return _office_open_failure("office_view_not_ready", "El Despacho no terminó de prepararse.")
+	var presentation: Dictionary = prepared.data.presentation.duplicate(true)
+	presentation["synthetic"] = true
+	presentation["season_name"] = "Temporada técnica 1982-83"
+	presentation["competition_name"] = "Liga sintética de desarrollo"
+	var configured = _office_view.configure(
+		prepared.data.controller,
+		prepared.data.calendar,
+		prepared.data.selection,
+		presentation
+	)
+	if not configured.ok:
+		return _office_open_failure(
+			configured.errors[0].get("code", "office_configuration_failed"),
+			configured.errors[0].get("message", "No se pudo configurar el Despacho.")
+		)
+	_office_session = {
+		"controller": prepared.data.controller,
+		"calendar": prepared.data.calendar,
+		"selection": prepared.data.selection.duplicate(true),
+		"presentation": presentation.duplicate(true),
+	}
+	_office_view.module_requested.connect(_on_office_module_requested)
+	_office_view.exit_requested.connect(_on_office_exit_requested)
+	_office_view.visible = true
+	menu_presentation.visible = false
+	season_host.visible = true
+	back_button.visible = false
+	_clear_error()
+	_transition_in_progress = false
+	_office_view.focus_initial_control()
+	return {"ok": true, "data": {"office_view": _office_view}, "errors": []}
+
+
+func open_office_module(module: String) -> Dictionary:
+	if _transition_in_progress:
+		return _failure("navigation_in_progress", "Ya hay una navegación en curso.")
+	if _office_view == null or not is_instance_valid(_office_view) \
+			or _office_view.get_parent() != season_host:
+		return _failure("office_unavailable", "No hay un Despacho activo.")
+	if module not in ["standings", "calendar"]:
+		return _failure("unknown_office_module", "El módulo solicitado no existe.")
+	if season_scene == null:
+		return _office_navigation_failure([{
+			"code": "season_scene_unavailable",
+			"message": "No se pudo abrir la consulta deportiva.",
+		}])
+	_transition_in_progress = true
+	var instance = season_scene.instantiate()
+	if not instance is Control or not instance.has_method("configure"):
+		if instance != null:
+			instance.free()
+		_transition_in_progress = false
+		return _office_navigation_failure([{
+			"code": "invalid_season_scene",
+			"message": "La consulta deportiva no contiene una interfaz válida.",
+		}])
+	instance.auto_demo = false
+	instance.visible = false
+	season_host.add_child(instance)
+	instance.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	await get_tree().process_frame
+	var configured = instance.configure(
+		_office_session.controller,
+		_office_session.calendar,
+		_office_session.selection,
+		_office_session.presentation
+	)
+	if not configured.ok:
+		season_host.remove_child(instance)
+		instance.queue_free()
+		_transition_in_progress = false
+		return _office_navigation_failure(configured.errors)
+	season_host.remove_child(_office_view)
+	_season_view = instance
+	_season_view.visible = true
+	_office_module_active = true
+	_office_module = module
+	back_button.visible = true
+	back_button.disabled = false
+	back_button.text = "Volver al Despacho"
+	var tabs = _season_view.get_node_or_null("%Tabs")
+	if tabs is TabContainer:
+		tabs.current_tab = 1 if module == "calendar" else 0
+	var focus_target = _season_view.get_node_or_null(
+		"%RoundSelector" if module == "calendar" else "%StandingsTree"
+	)
+	if focus_target is Control:
+		focus_target.grab_focus()
+	_transition_in_progress = false
+	return {"ok": true, "data": {"season_view": _season_view, "module": module}, "errors": []}
+
+
+func return_to_manager_office() -> Dictionary:
+	if _transition_in_progress:
+		return _failure("navigation_in_progress", "Ya hay una navegación en curso.")
+	if not _office_module_active or _office_view == null or not is_instance_valid(_office_view):
+		return _failure("office_module_unavailable", "No hay un módulo del Despacho activo.")
+	_transition_in_progress = true
+	var previous_module = _office_module
+	var active_view = _active_season_view()
+	if active_view != null:
+		season_host.remove_child(active_view)
+		active_view.queue_free()
+	_season_view = null
+	season_host.add_child(_office_view)
+	_office_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_office_view.visible = true
+	_office_module_active = false
+	_office_module = ""
+	back_button.visible = false
+	back_button.text = "Volver al inicio"
+	_transition_in_progress = false
+	_office_view.focus_module_control(previous_module)
+	return {"ok": true, "data": {"office_view": _office_view}, "errors": []}
 
 
 ## Revalida el pack y solo sustituye el selector después de configurar una
@@ -246,10 +417,19 @@ func show_main_menu() -> Dictionary:
 	if active_view != null:
 		season_host.remove_child(active_view)
 		active_view.queue_free()
+	if _office_view != null and is_instance_valid(_office_view) \
+			and _office_view != active_view:
+		if _office_view.get_parent() != null:
+			_office_view.get_parent().remove_child(_office_view)
+		_office_view.queue_free()
 	_season_view = null
 	_selection_view = null
+	_office_view = null
 	_historical_view_active = false
 	_historical_season_id = ""
+	_office_module_active = false
+	_office_module = ""
+	_office_session = {}
 	_show_menu_state()
 	_clear_error()
 	_transition_in_progress = false
@@ -264,10 +444,24 @@ func _on_selection_button_pressed() -> void:
 	show_season_selection()
 
 
+func _on_office_button_pressed() -> void:
+	await open_manager_office()
+
+
+func _on_office_module_requested(module: String) -> void:
+	await open_office_module(module)
+
+
+func _on_office_exit_requested() -> void:
+	show_main_menu()
+
+
 func _on_back_button_pressed() -> void:
 	if _transition_in_progress:
 		return
-	if _historical_view_active:
+	if _office_module_active:
+		return_to_manager_office()
+	elif _historical_view_active:
 		return_to_season_selection()
 	else:
 		show_main_menu()
@@ -295,7 +489,12 @@ func _active_content_view() -> Control:
 	var season = _active_season_view()
 	if season != null:
 		return season
-	return _active_selection_view()
+	var selection = _active_selection_view()
+	if selection != null:
+		return selection
+	if _office_view != null and is_instance_valid(_office_view):
+		return _office_view
+	return null
 
 
 func _show_menu_state() -> void:
@@ -306,14 +505,20 @@ func _show_menu_state() -> void:
 	back_button.text = "Volver al inicio"
 	demo_button.disabled = false
 	selection_button.disabled = false
+	office_button.visible = _development_season_pack_active
+	office_button.disabled = not _development_season_pack_active
 	demo_button.grab_focus()
 
 
 func _configure_focus_navigation() -> void:
 	demo_button.focus_next = demo_button.get_path_to(selection_button)
-	demo_button.focus_previous = demo_button.get_path_to(selection_button)
-	selection_button.focus_next = selection_button.get_path_to(demo_button)
+	demo_button.focus_previous = demo_button.get_path_to(office_button) \
+		if _development_season_pack_active else demo_button.get_path_to(selection_button)
+	selection_button.focus_next = selection_button.get_path_to(office_button) \
+		if _development_season_pack_active else selection_button.get_path_to(demo_button)
 	selection_button.focus_previous = selection_button.get_path_to(demo_button)
+	office_button.focus_next = office_button.get_path_to(demo_button)
+	office_button.focus_previous = office_button.get_path_to(selection_button)
 
 
 ## El modo de desarrollo solo se activa con un argumento de usuario separado
@@ -330,6 +535,9 @@ func _configure_runtime_mode(user_args: PackedStringArray) -> void:
 		# Evita que una ruta guardada en la escena active el pack silenciosamente.
 		season_root_path = DEFAULT_SEASON_ROOT
 	development_mode_banner.visible = _development_season_pack_active
+	office_button.visible = _development_season_pack_active
+	office_button.disabled = not _development_season_pack_active
+	_configure_focus_navigation()
 	if _development_pack_request_rejected:
 		_show_development_pack_unavailable()
 
@@ -348,6 +556,35 @@ func _show_development_pack_unavailable() -> void:
 		+ "esta variante. Se mantiene el catálogo histórico."
 	)
 	error_label.visible = true
+
+
+func _office_open_failure(code: String, message: String) -> Dictionary:
+	if _office_view != null and is_instance_valid(_office_view):
+		if _office_view.get_parent() == season_host:
+			season_host.remove_child(_office_view)
+		_office_view.queue_free()
+	_office_view = null
+	_office_session = {}
+	_transition_in_progress = false
+	return _show_failure(code, message)
+
+
+func _office_navigation_failure(errors: Array) -> Dictionary:
+	if _office_view != null and is_instance_valid(_office_view) \
+			and _office_view.has_method("show_navigation_error"):
+		_office_view.show_navigation_error(errors)
+		_office_view.focus_initial_control()
+	return {"ok": false, "data": null, "errors": errors.duplicate(true)}
+
+
+func _show_errors(errors: Array) -> Dictionary:
+	if errors.is_empty():
+		return _show_failure("office_load_failed", "No se pudo cargar la sesión del Despacho.")
+	var first = errors[0]
+	return _show_failure(
+		first.get("code", "office_load_failed"),
+		first.get("message", "No se pudo cargar la sesión del Despacho.")
+	)
 
 
 func _show_failure(code: String, message: String) -> Dictionary:

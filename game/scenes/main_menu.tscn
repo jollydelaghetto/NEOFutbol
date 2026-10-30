@@ -192,6 +192,16 @@ focus_mode = 2
 theme_override_styles/normal = SubResource("StyleButton")
 text = "Seleccionar temporada"
 
+[node name="OfficeButton" type="Button" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(360, 50)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 2
+theme_override_styles/normal = SubResource("StyleButton")
+text = "Iniciar prototipo de entrenador"
+
 [node name="SyntheticNotice" type="Label" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
 unique_name_in_owner = true
 layout_mode = 2

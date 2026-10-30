@@ -1,0 +1,322 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/ui/manager_office.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBackground"]
+bg_color = Color(0.027, 0.055, 0.102, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleHeader"]
+bg_color = Color(0.055, 0.118, 0.196, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.078, 0.72, 0.73, 0.75)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 16.0
+content_margin_top = 12.0
+content_margin_right = 16.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="StylePanel"]
+bg_color = Color(0.047, 0.086, 0.145, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.24, 0.39, 0.53, 0.8)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+content_margin_left = 14.0
+content_margin_top = 12.0
+content_margin_right = 14.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="StyleAction"]
+bg_color = Color(0.047, 0.45, 0.48, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.94, 0.88, 0.9)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+content_margin_left = 14.0
+content_margin_top = 9.0
+content_margin_right = 14.0
+content_margin_bottom = 9.0
+
+[node name="ManagerOffice" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+custom_minimum_size = Vector2(760, 520)
+script = ExtResource("1_script")
+
+[node name="Background" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBackground")
+
+[node name="PageMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="Page" type="VBoxContainer" parent="PageMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HeaderPanel" type="PanelContainer" parent="PageMargin/Page"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleHeader")
+
+[node name="Header" type="VBoxContainer" parent="PageMargin/Page/HeaderPanel"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Brand" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 24
+text = "NEOFutbol · Despacho"
+
+[node name="SeasonLabel" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Temporada técnica 1982-83"
+
+[node name="ClubLabel" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.83, 0.9, 1)
+text = "Club dirigido: Aurora Unión · elección provisional de desarrollo"
+
+[node name="WarningLabel" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.78, 0.25, 1)
+theme_override_font_sizes/font_size = 14
+text = "MODO DESARROLLO — DATOS SINTÉTICOS"
+
+[node name="ErrorLabel" type="Label" parent="PageMargin/Page"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.42, 0.42, 1)
+autowrap_mode = 2
+
+[node name="BodyScroll" type="ScrollContainer" parent="PageMargin/Page"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Body" type="VBoxContainer" parent="PageMargin/Page/BodyScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="AgendaPanel" type="PanelContainer" parent="PageMargin/Page/BodyScroll/Body"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="Agenda" type="VBoxContainer" parent="PageMargin/Page/BodyScroll/Body/AgendaPanel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="AgendaTitle" type="Label" parent="PageMargin/Page/BodyScroll/Body/AgendaPanel/Agenda"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 18
+text = "Agenda · próximo partido"
+
+[node name="AgendaFixtureLabel" type="Label" parent="PageMargin/Page/BodyScroll/Body/AgendaPanel/Agenda"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Calendario pendiente de carga"
+autowrap_mode = 2
+
+[node name="AgendaDateLabel" type="Label" parent="PageMargin/Page/BodyScroll/Body/AgendaPanel/Agenda"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.78, 0.86, 1)
+text = "La fecha se mostrará como dato de consulta."
+autowrap_mode = 2
+
+[node name="Modules" type="GridContainer" parent="PageMargin/Page/BodyScroll/Body"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
+
+[node name="StandingsPanel" type="PanelContainer" parent="PageMargin/Page/BodyScroll/Body/Modules"]
+custom_minimum_size = Vector2(350, 128)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="Standings" type="VBoxContainer" parent="PageMargin/Page/BodyScroll/Body/Modules/StandingsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="Title" type="Label" parent="PageMargin/Page/BodyScroll/Body/Modules/StandingsPanel/Standings"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 17
+text = "Clasificación"
+
+[node name="StandingsSummary" type="Label" parent="PageMargin/Page/BodyScroll/Body/Modules/StandingsPanel/Standings"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+text = "Clasificación pendiente de carga"
+autowrap_mode = 2
+
+[node name="StandingsButton" type="Button" parent="PageMargin/Page/BodyScroll/Body/Modules/StandingsPanel/Standings"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 42)
+layout_mode = 2
+focus_mode = 2
+theme_override_styles/normal = SubResource("StyleAction")
+text = "Consultar clasificación"
+
+[node name="CalendarPanel" type="PanelContainer" parent="PageMargin/Page/BodyScroll/Body/Modules"]
+custom_minimum_size = Vector2(350, 128)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="Calendar" type="VBoxContainer" parent="PageMargin/Page/BodyScroll/Body/Modules/CalendarPanel"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="Title" type="Label" parent="PageMargin/Page/BodyScroll/Body/Modules/CalendarPanel/Calendar"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 17
+text = "Calendario"
+
+[node name="CalendarSummary" type="Label" parent="PageMargin/Page/BodyScroll/Body/Modules/CalendarPanel/Calendar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+text = "Calendario pendiente de carga"
+autowrap_mode = 2
+
+[node name="CalendarButton" type="Button" parent="PageMargin/Page/BodyScroll/Body/Modules/CalendarPanel/Calendar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 42)
+layout_mode = 2
+focus_mode = 2
+theme_override_styles/normal = SubResource("StyleAction")
+text = "Consultar calendario"
+
+[node name="NewsPanel" type="PanelContainer" parent="PageMargin/Page/BodyScroll/Body/Modules"]
+custom_minimum_size = Vector2(350, 80)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="NewsStatus" type="Label" parent="PageMargin/Page/BodyScroll/Body/Modules/NewsPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.79, 0.86, 1)
+text = "Noticias — pendiente de implementación"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="FinancePanel" type="PanelContainer" parent="PageMargin/Page/BodyScroll/Body/Modules"]
+custom_minimum_size = Vector2(350, 80)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="FinanceStatus" type="Label" parent="PageMargin/Page/BodyScroll/Body/Modules/FinancePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.79, 0.86, 1)
+text = "Finanzas — pendiente de implementación"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="FuturePanel" type="PanelContainer" parent="PageMargin/Page/BodyScroll/Body"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="FutureActions" type="VBoxContainer" parent="PageMargin/Page/BodyScroll/Body/FuturePanel"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="FutureTitle" type="Label" parent="PageMargin/Page/BodyScroll/Body/FuturePanel/FutureActions"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+text = "Funciones futuras"
+
+[node name="FutureButtons" type="GridContainer" parent="PageMargin/Page/BodyScroll/Body/FuturePanel/FutureActions"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="SquadButton" type="Button" parent="PageMargin/Page/BodyScroll/Body/FuturePanel/FutureActions/FutureButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Plantilla — pendiente"
+
+[node name="TacticsButton" type="Button" parent="PageMargin/Page/BodyScroll/Body/FuturePanel/FutureActions/FutureButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Tácticas — pendiente"
+
+[node name="MarketButton" type="Button" parent="PageMargin/Page/BodyScroll/Body/FuturePanel/FutureActions/FutureButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Mercado — pendiente"
+
+[node name="AdvanceButton" type="Button" parent="PageMargin/Page/BodyScroll/Body/FuturePanel/FutureActions/FutureButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Avanzar día — pendiente"
+
+[node name="Footer" type="HBoxContainer" parent="PageMargin/Page"]
+layout_mode = 2
+
+[node name="ContextNote" type="Label" parent="PageMargin/Page/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.58, 0.67, 0.75, 1)
+text = "Prototipo de consulta · sin simulación temporal ni guardado de carrera"
+autowrap_mode = 2
+
+[node name="ExitButton" type="Button" parent="PageMargin/Page/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(210, 42)
+layout_mode = 2
+focus_mode = 2
+text = "Salir al menú principal"

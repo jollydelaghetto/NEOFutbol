@@ -83,6 +83,44 @@ func _initialize() -> void:
 				if token in ["-0", "0e2"]:
 					expected = 0
 				_check(result.data.get(field) == expected, "valor exacto con signo")
+	for token in ["1", "2", "1.0", "10e-1", "0.01e2", "9007199254740991"]:
+		result = _competition_format(
+			'{"kind":"round_robin","legs":%s,"unknown":{"kept":true}}' % token
+		)
+		_check(result.ok, "competition_format.legs exacto " + token)
+		if result.data is Rules:
+			_check(typeof(result.data.competition_format.legs) == TYPE_INT,
+				"competition_format.legs normalizado a int " + token)
+			_check(result.data.competition_format.unknown == {"kept": true},
+				"propiedad desconocida conservada " + token)
+	result = _competition_format('{"kind":"round_robin","legs":null}')
+	_check(result.ok and result.data.competition_format.legs == null,
+		"competition_format.legs null conservado")
+	for token in [
+		"9007199254740992", "9007199254740993", "1.0000000000000001",
+		"0.99999999999999999", "1.5", "1e999", "1e-999",
+		"1e999999999999999999999", "1e-999999999999999999999",
+		"0e99999", "true", "false", '"1"', "[]", "{}",
+	]:
+		_expect_error(_competition_format(
+			'{"kind":"round_robin","legs":%s}' % token
+		), "invalid_type", "competition_format.legs")
+	for token in ["0", "-0", "-1", "-2.0"]:
+		_expect_error(_competition_format(
+			'{"kind":"round_robin","legs":%s}' % token
+		), "invalid_value", "competition_format.legs")
+	_expect_error(_competition_format(
+		'{"kind":"round_robin","legs":1,"legs":2}'
+	), "duplicate_field", "competition_format.legs")
+	_expect_error(_competition_format(
+		'{"kind":"round_robin","legs":1,"l\\u0065gs":2}'
+	), "duplicate_field", "competition_format.legs")
+	result = _competition_format(
+		'{"kind":"round_robin","l\\u0065gs":2}'
+	)
+	_check(result.ok and result.data.competition_format.legs == 2
+		and typeof(result.data.competition_format.legs) == TYPE_INT,
+		"clave competition_format.legs escapada normalizada")
 	for field in valid:
 		var encoded = JSON.stringify(field)
 		var escaped = '"\\u%04x%s"' % [field.unicode_at(0), field.substr(1)]
@@ -106,6 +144,28 @@ func _initialize() -> void:
 	if result.data is Rules:
 		for field in CONTAINERS:
 			_check(result.data.get(field) == extra[field], "contenedor conservado " + field)
+	var homonyms = _valid()
+	homonyms.substitution_rules = {"legs": 1.5}
+	homonyms.promotion_relegation_rules = {
+		"competition_format": {"legs": 0},
+	}
+	homonyms.competition_format = {
+		"kind": "round_robin", "legs": 2,
+		"nested": {"legs": 1.5}, "list": [{"legs": 0}],
+		"text": "embedded {\"legs\":0}",
+	}
+	result = _parse(JSON.stringify(homonyms))
+	_check(result.ok and result.data.competition_format.legs == 2,
+		"claves legs homónimas fuera del campo directo se ignoran")
+	if result.data is Rules:
+		_check(result.data.substitution_rules == {"legs": 1.5}
+			and result.data.promotion_relegation_rules == {
+				"competition_format": {"legs": 0.0},
+			}
+			and result.data.competition_format.nested == {"legs": 1.5}
+			and result.data.competition_format.list == [{"legs": 0.0}]
+			and result.data.competition_format.text == "embedded {\"legs\":0}",
+			"estructuras homónimas se conservan sin transformación")
 	var real = Parser.new().parse_file("res://data/seasons/1982-83/rules.json", "1982-83")
 	_check(real.ok and real.data is Rules, "lectura del archivo real")
 	if real.data is Rules:
@@ -146,6 +206,14 @@ func _number(field: String, token: String) -> Dictionary:
 	var values = _valid()
 	values[field] = "__number_token__"
 	return _parse(JSON.stringify(values).replace('"__number_token__"', token))
+
+
+func _competition_format(format_token: String) -> Dictionary:
+	var values = _valid()
+	values.competition_format = "__competition_format_token__"
+	return _parse(JSON.stringify(values).replace(
+		'"__competition_format_token__"', format_token
+	))
 
 
 func _expect_error(result: Dictionary, code: String, field: String = "") -> void:

@@ -3,6 +3,7 @@ extends SceneTree
 const MenuScene = preload("res://game/scenes/main_menu.tscn")
 const Catalog = preload("res://game/scripts/services/season_catalog_service.gd")
 const Loader = preload("res://game/scripts/services/season_session_loader.gd")
+const RulesParser = preload("res://game/scripts/infrastructure/competition_rules_parser.gd")
 
 const DEV_ROOT = "res://data/dev/seasons"
 const DEV_PACK = DEV_ROOT + "/1982-83"
@@ -59,8 +60,15 @@ func _run() -> void:
 		"cada club sintético tiene un jugador asociado")
 	_check(rules.competition_id == "dev_synthetic_league"
 		and rules.team_count == 4.0 and rules.round_count == 3.0
-		and rules.competition_format.kind == "round_robin",
+		and rules.competition_format.kind == "round_robin"
+		and rules.competition_format.legs == 1.0,
 		"las reglas describen una liga única a una vuelta")
+	var parsed_rules = RulesParser.new().parse_file(
+		DEV_PACK.path_join("rules.json"), "1982-83"
+	)
+	_check(parsed_rules.ok and parsed_rules.data.competition_format.legs == 1
+		and typeof(parsed_rules.data.competition_format.legs) == TYPE_INT,
+		"el parser normaliza legs = 1 del pack a TYPE_INT")
 	_check(fixtures.size() == 6, "el calendario contiene seis partidos")
 	var competitions: Dictionary = {}
 	var stages: Dictionary = {}

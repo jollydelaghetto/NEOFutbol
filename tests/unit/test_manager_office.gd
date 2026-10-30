@@ -3,6 +3,7 @@ extends SceneTree
 const MenuScene = preload("res://game/scenes/main_menu.tscn")
 const OfficeScene = preload("res://game/scenes/manager_office.tscn")
 const OfficeScript = preload("res://game/scripts/ui/manager_office.gd")
+const ClubSelectionScript = preload("res://game/scripts/ui/manager_club_selection.gd")
 const SeasonScript = preload("res://game/scripts/ui/season_overview.gd")
 const SessionLoader = preload("res://game/scripts/services/season_session_loader.gd")
 
@@ -54,16 +55,15 @@ func _test_office_scene_contract() -> void:
 	presentation["synthetic"] = true
 	var configured = view.configure(
 		prepared.data.controller, prepared.data.calendar,
-		prepared.data.selection, presentation
+		prepared.data.selection, presentation, "dev_aurora_union"
 	)
 	_check(configured.ok and configured.data.club_id == "dev_aurora_union"
 		and configured.data.season_id == "1982-83",
 		"configura la temporada técnica y conserva el ID de Aurora Unión")
 	_check(view.get_script() == OfficeScript
 		and view.season_label.text == "Temporada técnica 1982-83"
-		and view.club_label.text.contains("Aurora Unión")
-		and view.club_label.text.contains("provisional"),
-		"identifica el Despacho, la temporada y la asignación provisional")
+		and view.club_label.text == "Club dirigido: Aurora Unión",
+		"identifica el Despacho, la temporada y el club confirmado")
 	_check(view.warning_label.text == "MODO DESARROLLO — DATOS SINTÉTICOS",
 		"mantiene visible la advertencia sintética")
 	_check(view.agenda_fixture_label.get_meta("fixture_id", "")
@@ -110,7 +110,7 @@ func _test_normal_mode_isolation() -> void:
 	await process_frame
 	_check(not menu.office_button.visible and menu.office_button.disabled,
 		"el modo normal no muestra ni habilita el prototipo")
-	var rejected = await menu.open_manager_office()
+	var rejected = await menu.show_manager_club_selection()
 	_check(not rejected.ok and rejected.errors[0].code == "development_mode_required"
 		and menu._office_view == null and menu.season_host.get_child_count() == 0,
 		"una llamada directa tampoco activa una carrera sintética en modo normal")
@@ -143,6 +143,16 @@ func _test_development_navigation() -> void:
 	await _press_key(KEY_TAB)
 	_check(_focus_owner() == menu.office_button,
 		"Tab alcanza después la entrada al prototipo")
+	await _press_key(KEY_ENTER)
+	await process_frame
+	await process_frame
+	var club_selection = menu._club_selection_view
+	_check(club_selection != null and club_selection.get_script() == ClubSelectionScript
+		and menu._office_view == null and menu.season_host.get_child_count() == 1,
+		"Enter abre primero una única selección de club")
+	_check(_focus_owner() == club_selection.club_selector,
+		"la selección transfiere el foco al selector")
+	await _press_key(KEY_TAB)
 	await _press_key(KEY_ENTER)
 	await process_frame
 	await process_frame
@@ -215,8 +225,14 @@ func _test_development_navigation() -> void:
 	menu.office_button.pressed.emit()
 	await process_frame
 	await process_frame
+	_check(menu._club_selection_view != null and menu._office_view == null
+		and menu.season_host.get_child_count() == 1,
+		"activaciones repetidas vuelven a crear una sola selección")
+	menu._club_selection_view.continue_button.pressed.emit()
+	await process_frame
+	await process_frame
 	_check(menu._office_view != null and menu.season_host.get_child_count() == 1,
-		"activaciones repetidas vuelven a crear un solo Despacho")
+		"confirmar el segundo ciclo crea un solo Despacho")
 	menu._office_view.exit_button.pressed.emit()
 	await process_frame
 	_check(menu._office_view == null and menu.season_host.get_child_count() == 0,
@@ -249,7 +265,7 @@ func _test_load_failure() -> void:
 	menu.session_loader = FailingLoader.new()
 	root.add_child(menu)
 	await process_frame
-	var result = await menu.open_manager_office()
+	var result = await menu.show_manager_club_selection()
 	_check(not result.ok and result.errors[0].code == "office_pack_failure",
 		"propaga un error localizado de carga")
 	_check(menu._office_view == null and menu.season_host.get_child_count() == 0

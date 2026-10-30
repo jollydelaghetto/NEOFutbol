@@ -1,0 +1,184 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/ui/manager_club_selection.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBackground"]
+bg_color = Color(0.027, 0.055, 0.102, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleHeader"]
+bg_color = Color(0.055, 0.118, 0.196, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.078, 0.72, 0.73, 0.75)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 16.0
+content_margin_top = 12.0
+content_margin_right = 16.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="StyleCard"]
+bg_color = Color(0.047, 0.086, 0.145, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.24, 0.39, 0.53, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 28.0
+content_margin_top = 24.0
+content_margin_right = 28.0
+content_margin_bottom = 24.0
+
+[sub_resource type="StyleBoxFlat" id="StyleAction"]
+bg_color = Color(0.047, 0.45, 0.48, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.94, 0.88, 0.9)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+content_margin_left = 16.0
+content_margin_top = 10.0
+content_margin_right = 16.0
+content_margin_bottom = 10.0
+
+[node name="ManagerClubSelection" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+custom_minimum_size = Vector2(760, 520)
+script = ExtResource("1_script")
+
+[node name="Background" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBackground")
+
+[node name="PageMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Page" type="VBoxContainer" parent="PageMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HeaderPanel" type="PanelContainer" parent="PageMargin/Page"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleHeader")
+
+[node name="Header" type="VBoxContainer" parent="PageMargin/Page/HeaderPanel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Brand" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 24
+text = "NEOFutbol"
+
+[node name="Title" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Seleccionar club — Temporada técnica 1982-83"
+
+[node name="WarningLabel" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.78, 0.25, 1)
+theme_override_font_sizes/font_size = 14
+text = "MODO DESARROLLO — DATOS SINTÉTICOS"
+
+[node name="ErrorLabel" type="Label" parent="PageMargin/Page"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.42, 0.42, 1)
+autowrap_mode = 2
+
+[node name="Center" type="CenterContainer" parent="PageMargin/Page"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Card" type="PanelContainer" parent="PageMargin/Page/Center"]
+custom_minimum_size = Vector2(540, 300)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleCard")
+
+[node name="Content" type="VBoxContainer" parent="PageMargin/Page/Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="Prompt" type="Label" parent="PageMargin/Page/Center/Card/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.76, 0.83, 0.9, 1)
+theme_override_font_sizes/font_size = 17
+text = "Elija el club que dirigirá en este prototipo consultivo."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ClubSelector" type="OptionButton" parent="PageMargin/Page/Center/Card/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 52)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 2
+theme_override_font_sizes/font_size = 17
+
+[node name="IdentityNote" type="Label" parent="PageMargin/Page/Center/Card/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.67, 0.75, 1)
+text = "La selección conserva el identificador interno del pack validado."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ContinueButton" type="Button" parent="PageMargin/Page/Center/Card/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(280, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 2
+theme_override_styles/normal = SubResource("StyleAction")
+text = "Continuar al Despacho"
+
+[node name="BackButton" type="Button" parent="PageMargin/Page/Center/Card/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(280, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 2
+text = "Volver al menú principal"
+
+[node name="FooterNote" type="Label" parent="PageMargin/Page"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.67, 0.75, 1)
+text = "No se crea una carrera ni se avanza el tiempo al confirmar."
+horizontal_alignment = 1
+autowrap_mode = 2

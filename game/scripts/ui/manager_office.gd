@@ -6,7 +6,6 @@ const Controller = preload("res://game/scripts/services/season_controller.gd")
 const Fixture = preload("res://game/scripts/data/match_fixture.gd")
 const Result = preload("res://game/scripts/data/match_result.gd")
 
-const CLUB_ID = "dev_aurora_union"
 const SEASON_ID = "1982-83"
 
 signal module_requested(module: String)
@@ -34,7 +33,7 @@ var _controller: Controller = null
 var _fixtures: Array[Fixture] = []
 var _selection: Dictionary = {}
 var _presentation: Dictionary = {}
-var _club_id := CLUB_ID
+var _club_id := ""
 
 
 func _ready() -> void:
@@ -48,16 +47,18 @@ func _ready() -> void:
 ## Vincula una sesión deportiva ya preparada. El Despacho solo consulta las
 ## APIs públicas del controlador y CalendarService; no mantiene estado temporal.
 func configure(controller: Controller, fixtures: Array[Fixture], selection: Dictionary,
-		presentation: Dictionary, club_id: String = CLUB_ID) -> Dictionary:
+		presentation: Dictionary, club_id: String) -> Dictionary:
 	if not is_node_ready():
 		return _failure("view_not_ready", "El Despacho todavía no está preparado.")
 	if controller == null:
 		return _show_failure("invalid_controller", "Falta el controlador deportivo.")
-	if selection.get("season_id") != SEASON_ID or club_id != CLUB_ID:
+	if selection.get("season_id") != SEASON_ID:
 		return _show_failure(
 			"unsupported_development_context",
-			"Este prototipo solo admite Aurora Unión en la temporada técnica 1982-83."
+			"Este prototipo solo admite la temporada técnica 1982-83."
 		)
+	if club_id.is_empty():
+		return _show_failure("missing_assigned_club", "Debe seleccionar un club.")
 	var context = controller.get_session_context()
 	if not context.ok:
 		return _show_result(context)
@@ -77,6 +78,13 @@ func configure(controller: Controller, fixtures: Array[Fixture], selection: Dict
 	if not standings.data.rows.any(func(row): return row.club_id == club_id):
 		return _show_failure(
 			"assigned_club_unavailable", "El club provisional no pertenece a la sesión."
+		)
+	var club_names = presentation.get("club_names")
+	if not club_names is Dictionary or not club_names.get(club_id) is String \
+			or club_names[club_id].strip_edges().is_empty():
+		return _show_failure(
+			"missing_club_display_name",
+			"El club seleccionado no tiene un nombre visible validado."
 		)
 	var results = controller.get_results()
 	if not results.ok:
@@ -135,7 +143,7 @@ func show_navigation_error(errors: Array) -> void:
 
 func _render_header() -> void:
 	season_label.text = "Temporada técnica 1982-83"
-	club_label.text = "Club dirigido: %s · elección provisional de desarrollo" % _club_name(_club_id)
+	club_label.text = "Club dirigido: %s" % _club_name(_club_id)
 	warning_label.text = "MODO DESARROLLO — DATOS SINTÉTICOS"
 
 
@@ -166,10 +174,14 @@ func _render_agenda(results: Array) -> void:
 		return
 	var round_text = "Sin jornada" if next_fixture.round_number == null \
 		else "Jornada %d" % next_fixture.round_number
-	agenda_fixture_label.text = "%s · %s — %s" % [
+	var is_home = next_fixture.home_club_id == _club_id
+	var rival_id = next_fixture.away_club_id if is_home else next_fixture.home_club_id
+	agenda_fixture_label.text = "%s · %s · %s — %s · Rival: %s" % [
 		round_text,
+		"Local" if is_home else "Visitante",
 		_club_name(next_fixture.home_club_id),
 		_club_name(next_fixture.away_club_id),
+		_club_name(rival_id),
 	]
 	agenda_fixture_label.set_meta("fixture_id", next_fixture.fixture_id)
 	agenda_date_label.text = (

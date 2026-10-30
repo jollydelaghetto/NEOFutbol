@@ -1,0 +1,200 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://game/scripts/ui/main_menu.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBackground"]
+bg_color = Color(0.027, 0.055, 0.102, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleHeader"]
+bg_color = Color(0.055, 0.118, 0.196, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.078, 0.72, 0.73, 0.65)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxFlat" id="StyleCard"]
+bg_color = Color(0.047, 0.086, 0.145, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.24, 0.39, 0.53, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 30.0
+content_margin_top = 26.0
+content_margin_right = 30.0
+content_margin_bottom = 26.0
+
+[sub_resource type="StyleBoxFlat" id="StyleButton"]
+bg_color = Color(0.047, 0.45, 0.48, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.94, 0.88, 0.9)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+content_margin_left = 18.0
+content_margin_top = 11.0
+content_margin_right = 18.0
+content_margin_bottom = 11.0
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+custom_minimum_size = Vector2(760, 520)
+script = ExtResource("1_script")
+
+[node name="Background" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBackground")
+
+[node name="PageMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Page" type="VBoxContainer" parent="PageMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HeaderPanel" type="PanelContainer" parent="PageMargin/Page"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleHeader")
+
+[node name="Header" type="HBoxContainer" parent="PageMargin/Page/HeaderPanel"]
+layout_mode = 2
+
+[node name="BrandLabel" type="Label" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 24
+text = "NEOFutbol"
+
+[node name="BackButton" type="Button" parent="PageMargin/Page/HeaderPanel/Header"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(160, 42)
+layout_mode = 2
+focus_mode = 2
+text = "Volver al inicio"
+
+[node name="ErrorLabel" type="Label" parent="PageMargin/Page"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.42, 0.42, 1)
+text = "Error de navegación"
+autowrap_mode = 2
+
+[node name="ContentArea" type="Control" parent="PageMargin/Page"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MenuPresentation" type="CenterContainer" parent="PageMargin/Page/ContentArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+[node name="MenuCard" type="PanelContainer" parent="PageMargin/Page/ContentArea/MenuPresentation"]
+custom_minimum_size = Vector2(560, 340)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleCard")
+
+[node name="MenuContent" type="VBoxContainer" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard"]
+layout_mode = 2
+theme_override_constants/separation = 15
+alignment = 1
+
+[node name="ProjectTitle" type="Label" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 38
+text = "NEOFutbol"
+horizontal_alignment = 1
+
+[node name="ProjectSubtitle" type="Label" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.76, 0.83, 0.9, 1)
+theme_override_font_sizes/font_size = 17
+text = "Simulador de gestión futbolística histórica en desarrollo"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="Spacer" type="Control" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="DemoButton" type="Button" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 54)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 2
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("StyleButton")
+text = "Demostración de temporada"
+
+[node name="SyntheticNotice" type="Label" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.78, 0.25, 1)
+text = "La demostración utiliza exclusivamente datos ficticios."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="DevelopmentStatus" type="Label" parent="PageMargin/Page/ContentArea/MenuPresentation/MenuCard/MenuContent"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.64, 0.72, 1)
+theme_override_font_sizes/font_size = 12
+text = "Versión en desarrollo · Primera navegación funcional"
+horizontal_alignment = 1
+
+[node name="SeasonHost" type="MarginContainer" parent="PageMargin/Page/ContentArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2

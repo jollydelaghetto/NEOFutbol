@@ -82,3 +82,8 @@ jobs:
           set -euo pipefail
           mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
           tools/verify_export_packages.sh "$RUNNER_TEMP/verified-exports"
+          preservation_log="$RUNNER_TEMP/export-preservation-test.log"
+          tests/tools/test_verify_export_packages.sh | tee "$preservation_log"
+          grep -Fqx \
+            'PASS: archivos preexistentes y raíz del repositorio preservados' \
+            "$preservation_log"

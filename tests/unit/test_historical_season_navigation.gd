@@ -54,6 +54,9 @@ func _run() -> void:
 	menu.season_root_path = temporary_root
 	root.add_child(menu)
 	await process_frame
+	_check(not menu._development_season_pack_active
+		and not menu.development_mode_banner.visible,
+		"una raíz de prueba no activa silenciosamente el modo de desarrollo")
 	_check(menu.get_node("%DemoButton").text == "Demostración de temporada"
 		and menu.get_node("%SelectionButton").text == "Seleccionar temporada",
 		"el menú conserva las dos entradas separadas")

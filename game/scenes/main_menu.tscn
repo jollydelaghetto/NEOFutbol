@@ -120,6 +120,16 @@ theme_override_colors/font_color = Color(1, 0.42, 0.42, 1)
 text = "Error de navegación"
 autowrap_mode = 2
 
+[node name="DevelopmentModeBanner" type="Label" parent="PageMargin/Page"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.78, 0.25, 1)
+theme_override_font_sizes/font_size = 16
+text = "MODO DESARROLLO — DATOS SINTÉTICOS"
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="ContentArea" type="Control" parent="PageMargin/Page"]
 layout_mode = 2
 size_flags_vertical = 3

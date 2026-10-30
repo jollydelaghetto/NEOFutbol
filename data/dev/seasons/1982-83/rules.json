@@ -1,0 +1,21 @@
+{
+  "season_id": "1982-83",
+  "competition_id": "dev_synthetic_league",
+  "points_win": 3,
+  "points_draw": 1,
+  "points_loss": 0,
+  "team_count": 4,
+  "round_count": 3,
+  "tiebreakers": [
+    "goal_difference",
+    "goals_for",
+    "wins"
+  ],
+  "substitution_rules": {},
+  "promotion_relegation_rules": {},
+  "competition_format": {
+    "kind": "round_robin",
+    "legs": null,
+    "head_to_head_policy": "single_pass"
+  }
+}

@@ -42,6 +42,7 @@ func _ready() -> void:
 	demo_button.pressed.connect(_on_demo_button_pressed)
 	selection_button.pressed.connect(_on_selection_button_pressed)
 	back_button.pressed.connect(_on_back_button_pressed)
+	_configure_focus_navigation()
 	_show_menu_state()
 
 
@@ -82,11 +83,12 @@ func show_season_demo() -> Dictionary:
 	back_button.text = "Volver al inicio"
 	_clear_error()
 	_transition_in_progress = false
+	back_button.grab_focus()
 	return {"ok": true, "data": {"season_view": _season_view}, "errors": []}
 
 
 ## Abre el catálogo histórico dentro del mismo contenedor usado por la demo.
-## La vista emite back_requested y el menú conserva también su retorno global.
+## El selector ofrece su propio retorno; el retorno global queda para consultas.
 func show_season_selection(selected_season_id: String = "") -> Dictionary:
 	if _transition_in_progress:
 		return _failure("navigation_in_progress", "Ya hay una navegación en curso.")
@@ -125,10 +127,12 @@ func show_season_selection(selected_season_id: String = "") -> Dictionary:
 		_selection_view.select_season(selected_season_id)
 	menu_presentation.visible = false
 	season_host.visible = true
-	back_button.visible = true
+	back_button.visible = false
 	back_button.text = "Volver al inicio"
 	_clear_error()
 	_transition_in_progress = false
+	if _selection_view.has_method("focus_initial_control"):
+		_selection_view.focus_initial_control()
 	return {"ok": true, "data": {"selection_view": _selection_view}, "errors": []}
 
 
@@ -204,10 +208,12 @@ func open_historical_season(season_id: String) -> Dictionary:
 			badge.text = DEVELOPMENT_WARNING
 	_historical_view_active = true
 	_historical_season_id = season_id
+	back_button.visible = true
 	back_button.text = "Volver a temporadas"
 	back_button.disabled = false
 	_clear_error()
 	_transition_in_progress = false
+	back_button.grab_focus()
 	return {"ok": true, "data": {"season_view": _season_view}, "errors": []}
 
 
@@ -300,6 +306,14 @@ func _show_menu_state() -> void:
 	back_button.text = "Volver al inicio"
 	demo_button.disabled = false
 	selection_button.disabled = false
+	demo_button.grab_focus()
+
+
+func _configure_focus_navigation() -> void:
+	demo_button.focus_next = demo_button.get_path_to(selection_button)
+	demo_button.focus_previous = demo_button.get_path_to(selection_button)
+	selection_button.focus_next = selection_button.get_path_to(demo_button)
+	selection_button.focus_previous = selection_button.get_path_to(demo_button)
 
 
 ## El modo de desarrollo solo se activa con un argumento de usuario separado
@@ -364,6 +378,8 @@ func _historical_failure(errors: Array, provisional_view: Control = null) -> Dic
 			selector.show_request_errors(errors)
 		if selector.has_method("set_request_in_progress"):
 			selector.set_request_in_progress(false)
+		if selector.has_method("focus_initial_control"):
+			selector.focus_initial_control()
 	back_button.disabled = false
 	_transition_in_progress = false
 	return {"ok": false, "data": null, "errors": errors.duplicate(true)}

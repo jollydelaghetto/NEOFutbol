@@ -13,6 +13,12 @@ const REQUIRED_FILES = [
 ]
 const WARNING = "MODO DESARROLLO — DATOS SINTÉTICOS"
 const SAVE_DIRECTORY = "user://neofutbol/sporting_state"
+const CLUB_NAMES = {
+	"dev_aurora_union": "Aurora Unión",
+	"dev_bruma_atletico": "Bruma Atlético",
+	"dev_cometa_fc": "Cometa FC",
+	"dev_duna_deportivo": "Duna Deportivo",
+}
 
 var checks := 0
 var failures: Array[String] = []
@@ -53,6 +59,11 @@ func _run() -> void:
 		club_ids.append(club.club_id)
 	_check(_all_prefixed(club_ids, "dev_") and _unique_count(club_ids) == 4,
 		"los clubes usan identificadores sintéticos únicos")
+	var display_names: Dictionary = {}
+	for club in clubs:
+		display_names[club.club_id] = club.get("display_name")
+	_check(display_names == CLUB_NAMES,
+		"el pack declara nombres legibles exactos sin sustituir los IDs")
 	var player_clubs: Array[String] = []
 	for player in players:
 		player_clubs.append(player.club_id)
@@ -109,6 +120,16 @@ func _run() -> void:
 			"la clasificación inicial contiene cuatro clubes")
 		_check(prepared.data.controller.get_results().data.results.is_empty(),
 			"la sesión no contiene resultados iniciales")
+		_check(prepared.data.presentation.club_names == CLUB_NAMES,
+			"el loader deriva el mapeo visual desde clubs.json")
+		var sporting_ids: Array = prepared.data.controller.get_standings().data.rows.map(
+			func(row): return row.club_id
+		)
+		sporting_ids.sort()
+		var expected_ids: Array = CLUB_NAMES.keys()
+		expected_ids.sort()
+		_check(sporting_ids == expected_ids,
+			"la clasificación deportiva conserva los identificadores estables")
 
 	var normal_menu = MenuScene.instantiate()
 	normal_menu.command_line_user_args = PackedStringArray()
@@ -193,6 +214,31 @@ func _run() -> void:
 			"la consulta muestra los seis partidos y tres jornadas")
 		_check(_tree_row_count(overview.standings_tree) == 4,
 			"la consulta muestra cuatro filas de clasificación")
+		var visible_names = _tree_column_texts(overview.standings_tree, 1)
+		visible_names.sort()
+		var expected_names: Array = CLUB_NAMES.values()
+		expected_names.sort()
+		_check(visible_names == expected_names,
+			"la clasificación presenta los cuatro nombres legibles")
+		for round_index in overview.round_selector.item_count:
+			overview.round_selector.select(round_index)
+			overview.round_selector.item_selected.emit(round_index)
+			var round_number = overview.round_selector.get_item_metadata(round_index)
+			var expected_round: Array[String] = []
+			for fixture in fixtures:
+				if int(fixture.round_number) == round_number:
+					expected_round.append(fixture.fixture_id)
+			expected_round.sort()
+			_check(_visible_fixture_ids(overview) == expected_round,
+				"la jornada %s conserva sus emparejamientos" % round_number)
+			var match_text = "\n".join(_visible_match_texts(overview))
+			for fixture in fixtures:
+				if int(fixture.round_number) == round_number:
+					_check(match_text.contains(CLUB_NAMES[fixture.home_club_id])
+						and match_text.contains(CLUB_NAMES[fixture.away_club_id]),
+						"la jornada %s presenta nombres para %s" % [
+							round_number, fixture.fixture_id,
+						])
 		_check(overview._controller.get_results().data.results.is_empty(),
 			"la navegación no inventa resultados")
 
@@ -270,6 +316,33 @@ func _tree_row_count(tree: Tree) -> int:
 		count += 1
 		item = item.get_next()
 	return count
+
+
+func _tree_column_texts(tree: Tree, column: int) -> Array[String]:
+	var values: Array[String] = []
+	var item = tree.get_root().get_first_child() if tree.get_root() != null else null
+	while item != null:
+		values.append(item.get_text(column))
+		item = item.get_next()
+	return values
+
+
+func _visible_fixture_ids(overview: Node) -> Array[String]:
+	var fixture_ids: Array[String] = []
+	for panel in overview.match_list.get_children():
+		if panel.has_meta("fixture_id"):
+			fixture_ids.append(panel.get_meta("fixture_id"))
+	return fixture_ids
+
+
+func _visible_match_texts(overview: Node) -> Array[String]:
+	var texts: Array[String] = []
+	for panel in overview.match_list.get_children():
+		if panel.has_meta("fixture_id") and panel.get_child_count() > 0:
+			var row = panel.get_child(0)
+			if row.get_child_count() > 1:
+				texts.append(row.get_child(1).text)
+	return texts
 
 
 func _save_files() -> Array[String]:

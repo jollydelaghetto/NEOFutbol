@@ -1,21 +1,25 @@
 [
   {
     "club_id": "dev_aurora_union",
+    "display_name": "Aurora Unión",
     "season_id": "1982-83",
     "division_id": "dev_first_division"
   },
   {
     "club_id": "dev_bruma_atletico",
+    "display_name": "Bruma Atlético",
     "season_id": "1982-83",
     "division_id": "dev_first_division"
   },
   {
     "club_id": "dev_cometa_fc",
+    "display_name": "Cometa FC",
     "season_id": "1982-83",
     "division_id": "dev_first_division"
   },
   {
     "club_id": "dev_duna_deportivo",
+    "display_name": "Duna Deportivo",
     "season_id": "1982-83",
     "division_id": "dev_first_division"
   }

@@ -37,6 +37,9 @@ func parse_file(path: String, expected_season_id: String = "") -> Dictionary:
 	var scan = _root_tokens(text)
 	if not scan.duplicate.is_empty():
 		return _failure("duplicate_field", path, "Campo obligatorio duplicado.", scan.duplicate)
+	if not scan.competition_format_duplicate.is_empty():
+		return _failure("duplicate_field", path, "Campo anidado duplicado.",
+			scan.competition_format_duplicate)
 	for field in REQUIRED:
 		if not fields.has(field):
 			return _failure("missing_field", path, "Falta el campo obligatorio.", field)
@@ -64,6 +67,25 @@ func parse_file(path: String, expected_season_id: String = "") -> Dictionary:
 	for field in CONTAINERS:
 		if fields[field] != null and typeof(fields[field]) != CONTAINERS[field]:
 			return _failure("invalid_type", path, "Tipo de contenedor incorrecto.", field)
+	var competition_format = fields.competition_format
+	if competition_format is Dictionary and competition_format.has("legs"):
+		var value = competition_format.legs
+		if value != null:
+			if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
+				return _failure("invalid_type", path,
+					"competition_format.legs debe ser un entero exacto positivo o null.",
+					"competition_format.legs")
+			var exact = _safe_integer(scan.competition_format_legs_token)
+			if exact == null or not is_finite(value) or value != exact:
+				return _failure("invalid_type", path,
+					"competition_format.legs no es un entero exacto representable.",
+					"competition_format.legs")
+			if exact <= 0:
+				return _failure("invalid_value", path,
+					"competition_format.legs debe ser positivo o null.",
+					"competition_format.legs")
+			competition_format = competition_format.duplicate(true)
+			competition_format["legs"] = exact
 	var rules = Rules.new()
 	rules.season_id = fields.season_id
 	rules.competition_id = fields.competition_id
@@ -75,7 +97,7 @@ func parse_file(path: String, expected_season_id: String = "") -> Dictionary:
 	rules.tiebreakers = fields.tiebreakers
 	rules.substitution_rules = fields.substitution_rules
 	rules.promotion_relegation_rules = fields.promotion_relegation_rules
-	rules.competition_format = fields.competition_format
+	rules.competition_format = competition_format
 	return {"ok": true, "data": rules, "errors": []}
 
 
@@ -87,13 +109,18 @@ func _failure(code: String, path: String, message: String, field: String = "") -
 
 
 ## JSON.parse ya ha comprobado la sintaxis. Conserva tokens de valores de raíz
-## y decodifica sus claves para detectar duplicados incluso con escapes Unicode.
+## y de competition_format.legs. El seguimiento de profundidad impide confundir
+## claves homónimas en otros objetos o en estructuras anidadas.
 func _root_tokens(text: String) -> Dictionary:
 	var lexer = RegEx.new()
 	lexer.compile('"([^"\\\\]|\\\\.)*"|[{}\\[\\]:,]|[^\\s{}\\[\\]:,]+')
 	var matches = lexer.search_all(text)
 	var depth = 0
 	var values: Dictionary = {}
+	var competition_format_depth = -1
+	var competition_format_legs_token = ""
+	var competition_format_legs_seen = false
+	var competition_format_duplicate = ""
 	for index in matches.size():
 		var token = matches[index].get_string()
 		if depth == 1 and token.begins_with('"') and index + 2 < matches.size() \
@@ -101,13 +128,36 @@ func _root_tokens(text: String) -> Dictionary:
 			var key = JSON.parse_string(token)
 			if key in REQUIRED:
 				if values.has(key):
-					return {"tokens": {}, "duplicate": key}
+					return {
+						"tokens": {}, "duplicate": key,
+						"competition_format_legs_token": "",
+						"competition_format_duplicate": "",
+					}
 				values[key] = matches[index + 2].get_string()
+				if key == "competition_format" and values[key] == "{":
+					competition_format_depth = depth + 1
+		elif depth == competition_format_depth and token.begins_with('"') \
+				and index + 2 < matches.size() \
+				and matches[index + 1].get_string() == ":":
+			var nested_key = JSON.parse_string(token)
+			if nested_key == "legs":
+				if competition_format_legs_seen:
+					competition_format_duplicate = "competition_format.legs"
+				else:
+					competition_format_legs_seen = true
+					competition_format_legs_token = matches[index + 2].get_string()
 		if token == "{" or token == "[":
 			depth += 1
 		elif token == "}" or token == "]":
 			depth -= 1
-	return {"tokens": values, "duplicate": ""}
+			if depth < competition_format_depth:
+				competition_format_depth = -1
+	return {
+		"tokens": values,
+		"duplicate": "",
+		"competition_format_legs_token": competition_format_legs_token,
+		"competition_format_duplicate": competition_format_duplicate,
+	}
 
 
 ## Normaliza el token decimal con cadenas antes de convertirlo a int.

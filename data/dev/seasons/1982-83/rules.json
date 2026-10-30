@@ -15,7 +15,7 @@
   "promotion_relegation_rules": {},
   "competition_format": {
     "kind": "round_robin",
-    "legs": null,
+    "legs": 1,
     "head_to_head_policy": "single_pass"
   }
 }

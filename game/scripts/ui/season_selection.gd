@@ -2,7 +2,6 @@ class_name SeasonSelection
 extends Control
 
 signal back_requested
-signal season_start_requested(season_id: String)
 
 const CatalogService = preload("res://game/scripts/services/season_catalog_service.gd")
 
@@ -21,7 +20,6 @@ var _seasons: Array[Dictionary] = []
 
 func _ready() -> void:
 	season_list.item_selected.connect(_on_season_selected)
-	start_button.pressed.connect(_on_start_pressed)
 	back_button.pressed.connect(_on_back_pressed)
 	refresh_catalog()
 
@@ -45,9 +43,10 @@ func refresh_catalog() -> Dictionary:
 		if not season is Dictionary:
 			continue
 		_seasons.append(season.duplicate(true))
-		var index = season_list.add_item("%s · %s" % [season.label, season.status_label])
+		var display_status = _display_status(season)
+		var index = season_list.add_item("%s · %s" % [season.label, display_status])
 		season_list.set_item_metadata(index, season.season_id)
-		season_list.set_item_tooltip(index, season.status_label)
+		season_list.set_item_tooltip(index, display_status)
 	_clear_error()
 	if _seasons.is_empty():
 		status_label.text = "No hay temporadas en el catálogo."
@@ -77,16 +76,6 @@ func _on_season_selected(index: int) -> void:
 	_update_selected_state(index)
 
 
-func _on_start_pressed() -> void:
-	var selected = season_list.get_selected_items()
-	if selected.is_empty():
-		return
-	var index = selected[0]
-	if index < 0 or index >= _seasons.size() or not _seasons[index].playable:
-		return
-	season_start_requested.emit(_seasons[index].season_id)
-
-
 func _on_back_pressed() -> void:
 	back_requested.emit()
 
@@ -98,17 +87,28 @@ func _update_selected_state(index: int) -> void:
 		start_button.disabled = true
 		return
 	var season = _seasons[index]
-	status_label.text = "%s · %s" % [season.label, season.status_label]
-	start_button.disabled = not season.playable
+	status_label.text = "%s · %s" % [season.label, _display_status(season)]
+	# El catálogo conserva la aptitud de los datos, pero esta fase no contiene
+	# un flujo real de creación de partidas históricas.
+	start_button.disabled = true
 	if not season.missing_content.is_empty():
 		details_label.text = "Contenido pendiente: %s" % ", ".join(season.missing_content)
 	elif not season.diagnostics.is_empty():
 		var diagnostic = season.diagnostics[0]
 		details_label.text = diagnostic.get("message", "El pack requiere revisión.")
 	elif season.playable:
-		details_label.text = "Datos descubiertos y validados. La temporada puede iniciarse."
+		details_label.text = (
+			"Los datos deportivos son aptos. El inicio de partidas históricas "
+			+ "todavía no está implementado."
+		)
 	else:
 		details_label.text = "El pack está validado, pero aún no reúne los datos mínimos para jugar."
+
+
+func _display_status(season: Dictionary) -> String:
+	if season.get("playable", false):
+		return "Datos deportivos disponibles · Inicio pendiente"
+	return season.get("status_label", "Estado desconocido")
 
 
 func _show_catalog_error(errors: Array) -> void:

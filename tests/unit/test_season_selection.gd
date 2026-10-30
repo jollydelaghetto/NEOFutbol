@@ -16,7 +16,6 @@ class FakeCatalog:
 
 var failures: Array[String] = []
 var checks = 0
-var started_ids: Array[String] = []
 var back_count = 0
 
 
@@ -49,16 +48,37 @@ func _run() -> void:
 		"temporada incompleta no iniciable")
 	_check(details.text.contains("fixtures.json"), "contenido pendiente explicado")
 
-	view.season_start_requested.connect(_on_started)
+	_check(not view.has_signal("season_start_requested"),
+		"no publica una señal de inicio sin consumidor operativo")
 	list.select(1)
 	list.item_selected.emit(1)
 	_check(view.get_selected_season_id() == "1983-84", "selección mediante índice de ItemList")
-	_check(not start.disabled and status.text.contains("Temporada disponible"),
-		"pack jugable habilita el inicio")
+	_check(start.disabled and status.text.contains("Datos deportivos disponibles"),
+		"pack jugable conserva su aptitud sin habilitar el inicio")
+	_check(view._seasons[1].playable and source.data.seasons[1].playable,
+		"la interfaz no altera la disponibilidad deportiva del catálogo")
+	_check(details.text.contains("datos deportivos son aptos")
+		and details.text.contains("todavía no está implementado"),
+		"pack jugable explica que el flujo de inicio está pendiente")
 	start.pressed.emit()
-	_check(started_ids == ["1983-84"], "inicio emite la temporada seleccionada")
+	_check(start.disabled, "una activación programática no habilita el botón")
+
+	list.select(2)
+	list.item_selected.emit(2)
+	_check(view.get_selected_season_id() == "1984-85"
+		and start.disabled and status.text.contains("Datos validados"),
+		"pack validado pero no jugable permanece bloqueado")
+	_check(details.text.contains("no reúne los datos mínimos"),
+		"pack no jugable mantiene su explicación")
+
+	list.select(3)
+	list.item_selected.emit(3)
+	_check(start.disabled and status.text.contains("Datos no disponibles"),
+		"temporada no descubierta se distingue y no permite iniciar")
 
 	# La vista conserva copias y la selección al refrescar.
+	list.select(1)
+	list.item_selected.emit(1)
 	source.data.seasons[1].label = "mutado fuera"
 	_check(list.get_item_text(1).begins_with("1983-84"),
 		"catálogo mostrado no comparte datos externos")
@@ -106,19 +126,34 @@ func _catalog_result() -> Dictionary:
 	for start_year in range(1982, 2011):
 		var season_id = "%d-%02d" % [start_year, (start_year + 1) % 100]
 		var playable = start_year == 1983
+		var validated_not_playable = start_year == 1984
+		var incomplete = start_year == 1982
+		var status_code = "not_discovered"
+		var status_label = "Datos no disponibles"
+		if incomplete:
+			status_code = "incomplete"
+			status_label = "Pack incompleto"
+		elif playable:
+			status_code = "playable"
+			status_label = "Temporada disponible"
+		elif validated_not_playable:
+			status_code = "validated_not_playable"
+			status_label = "Datos validados; inicio no disponible"
 		seasons.append({
 			"season_id": season_id,
 			"label": season_id,
 			"in_project_horizon": true,
-			"data_discovered": start_year <= 1983,
-			"data_validated": playable,
-			"validation_scope": "structural_and_referential" if playable else "none",
-			"provenance_declared": playable,
+			"data_discovered": incomplete or playable or validated_not_playable,
+			"data_validated": playable or validated_not_playable,
+			"validation_scope": (
+				"structural_and_referential" if playable or validated_not_playable else "none"
+			),
+			"provenance_declared": playable or validated_not_playable,
 			"playable": playable,
-			"status_code": "playable" if playable else "incomplete",
-			"status_label": "Temporada disponible" if playable else "Pack incompleto",
+			"status_code": status_code,
+			"status_label": status_label,
 			"pack_path": "/tmp/%s" % season_id,
-			"missing_content": [] if playable else ["fixtures.json"],
+			"missing_content": ["fixtures.json"] if incomplete else [],
 			"diagnostics": [],
 		})
 	return {
@@ -126,10 +161,6 @@ func _catalog_result() -> Dictionary:
 		"data": {"seasons": seasons, "root_path": "/tmp", "horizon": {"count": 29}},
 		"errors": [],
 	}
-
-
-func _on_started(season_id: String) -> void:
-	started_ids.append(season_id)
 
 
 func _on_back() -> void:

@@ -3,11 +3,9 @@ set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 godot_bin="${GODOT_BIN:-godot}"
-output_root="${1:-${RUNNER_TEMP:-/tmp}/neofutbol-export-verification}"
+requested_output_parent="${1:-${RUNNER_TEMP:-/tmp}/neofutbol-export-verification}"
 public_preset="Linux-Public"
 development_preset="Linux-Development"
-public_zip="$output_root/NEOFutbol-public.zip"
-development_zip="$output_root/NEOFutbol-development.zip"
 
 required_historical=(
   data/seasons/1982-83/clubs.json
@@ -26,6 +24,39 @@ required_development=(
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
   exit 1
+}
+
+prepare_output_parent() {
+  local requested="$1"
+  local lexical ancestor parent physical
+  [[ -n "$requested" ]] || fail "El directorio de salida no puede estar vacío"
+  lexical="$(realpath --canonicalize-missing --no-symlinks -- "$requested")" \
+    || fail "No se pudo normalizar el directorio de salida: $requested"
+
+  # Comprueba el ancestro existente antes de crear directorios. Si cualquier
+  # componente resuelve mediante un enlace, se rechaza la ruta completa.
+  ancestor="$lexical"
+  while [[ ! -e "$ancestor" && ! -L "$ancestor" ]]; do
+    parent="$(dirname -- "$ancestor")"
+    [[ "$parent" != "$ancestor" ]] \
+      || fail "No existe un ancestro seguro para: $requested"
+    ancestor="$parent"
+  done
+  [[ -d "$ancestor" && ! -L "$ancestor" ]] \
+    || fail "El directorio de salida atraviesa un enlace o no es un directorio"
+  physical="$(realpath --canonicalize-existing -- "$ancestor")" \
+    || fail "No se pudo resolver el ancestro de salida: $ancestor"
+  [[ "$physical" == "$ancestor" ]] \
+    || fail "El directorio de salida no puede atravesar enlaces simbólicos"
+
+  mkdir -p -- "$lexical"
+  [[ -d "$lexical" && ! -L "$lexical" ]] \
+    || fail "No se pudo crear un directorio de salida seguro"
+  physical="$(realpath --canonicalize-existing -- "$lexical")" \
+    || fail "No se pudo resolver el directorio de salida"
+  [[ "$physical" == "$lexical" ]] \
+    || fail "El directorio de salida no puede atravesar enlaces simbólicos"
+  printf '%s\n' "$physical"
 }
 
 reject_errors() {
@@ -91,8 +122,14 @@ run_exported() {
   run_logged "$log_file" "$executable" --headless --quit-after 30 "$@"
 }
 
-rm -rf "$output_root"
-mkdir -p "$output_root"
+output_parent="$(prepare_output_parent "$requested_output_parent")"
+output_root="$(mktemp -d -- "$output_parent/neofutbol-export-verification.XXXXXXXX")"
+[[ -d "$output_root" && ! -L "$output_root" ]] \
+  || fail "No se pudo crear el directorio exclusivo de la ejecución"
+[[ "$(realpath --canonicalize-existing -- "$output_root")" == "$output_root" ]] \
+  || fail "El directorio exclusivo no puede atravesar enlaces simbólicos"
+public_zip="$output_root/NEOFutbol-public.zip"
+development_zip="$output_root/NEOFutbol-development.zip"
 
 version="$($godot_bin --version)"
 printf 'Godot: %s\n' "$version"
@@ -162,3 +199,4 @@ fi
 sha256sum "$public_zip" "$development_zip"
 printf 'PASS: exportaciones %s y %s verificadas\n' \
   "$public_preset" "$development_preset"
+printf 'Artefactos: %s\n' "$output_root"

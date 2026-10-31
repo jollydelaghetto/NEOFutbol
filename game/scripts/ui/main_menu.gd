@@ -4,6 +4,7 @@ extends Control
 const DEFAULT_SEASON_SCENE = preload("res://game/scenes/season_overview.tscn")
 const DEFAULT_SELECTION_SCENE = preload("res://game/scenes/season_selection.tscn")
 const DEFAULT_OFFICE_SCENE = preload("res://game/scenes/manager_office.tscn")
+const DEFAULT_CLUB_SELECTION_SCENE = preload("res://game/scenes/manager_club_selection.tscn")
 const SessionLoader = preload("res://game/scripts/services/season_session_loader.gd")
 const DEFAULT_SEASON_ROOT = "res://data/seasons"
 const DEVELOPMENT_SEASON_ROOT = "res://data/dev/seasons"
@@ -17,6 +18,7 @@ const DEVELOPMENT_REQUIRED_FILES = [
 @export var season_scene: PackedScene = DEFAULT_SEASON_SCENE
 @export var selection_scene: PackedScene = DEFAULT_SELECTION_SCENE
 @export var office_scene: PackedScene = DEFAULT_OFFICE_SCENE
+@export var club_selection_scene: PackedScene = DEFAULT_CLUB_SELECTION_SCENE
 @export var season_root_path := DEFAULT_SEASON_ROOT
 
 @onready var menu_presentation: CenterContainer = %MenuPresentation
@@ -30,6 +32,7 @@ const DEVELOPMENT_REQUIRED_FILES = [
 
 var _season_view: Control = null
 var _selection_view: Control = null
+var _club_selection_view: Control = null
 var _office_view: Control = null
 var _transition_in_progress := false
 var _historical_view_active := false
@@ -148,10 +151,9 @@ func show_season_selection(selected_season_id: String = "") -> Dictionary:
 	return {"ok": true, "data": {"selection_view": _selection_view}, "errors": []}
 
 
-## Prepara la única sesión sintética autorizada y abre su Despacho. Esta ruta
-## nunca está disponible en el modo normal ni convierte la consulta histórica
-## en una carrera.
-func open_manager_office() -> Dictionary:
+## Prepara una única sesión sintética validada y abre la selección de club.
+## Confirmar el club es un paso posterior; aquí no se crea aún el Despacho.
+func show_manager_club_selection() -> Dictionary:
 	if _transition_in_progress:
 		return _failure("navigation_in_progress", "Ya hay una navegación en curso.")
 	if not _development_season_pack_active:
@@ -161,13 +163,15 @@ func open_manager_office() -> Dictionary:
 		)
 	var active_view = _active_content_view()
 	if active_view != null:
-		if active_view == _office_view:
-			return {"ok": true, "data": {"office_view": active_view}, "errors": []}
+		if active_view == _club_selection_view:
+			return {"ok": true, "data": {"club_selection_view": active_view}, "errors": []}
 		return _failure(
-			"content_already_active", "Debe volver al menú antes de abrir el Despacho."
+			"content_already_active", "Debe volver al menú antes de iniciar el prototipo."
 		)
-	if office_scene == null:
-		return _show_failure("office_scene_unavailable", "No se pudo abrir el Despacho.")
+	if club_selection_scene == null:
+		return _show_failure(
+			"club_selection_scene_unavailable", "No se pudo abrir la selección de club."
+		)
 
 	_transition_in_progress = true
 	demo_button.disabled = true
@@ -178,46 +182,120 @@ func open_manager_office() -> Dictionary:
 		_transition_in_progress = false
 		_show_menu_state()
 		return _show_errors(prepared.errors)
-	var instance = office_scene.instantiate()
-	if not instance is Control or not instance.has_method("configure"):
-		if instance != null:
-			instance.free()
-		_transition_in_progress = false
-		return _show_failure("invalid_office_scene", "El Despacho no contiene una interfaz válida.")
-	_office_view = instance
-	_office_view.visible = false
-	season_host.add_child(_office_view)
-	_office_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	await get_tree().process_frame
-	if not is_instance_valid(_office_view) or not _office_view.is_node_ready():
-		return _office_open_failure("office_view_not_ready", "El Despacho no terminó de prepararse.")
 	var presentation: Dictionary = prepared.data.presentation.duplicate(true)
 	presentation["synthetic"] = true
 	presentation["season_name"] = "Temporada técnica 1982-83"
 	presentation["competition_name"] = "Liga sintética de desarrollo"
-	var configured = _office_view.configure(
-		prepared.data.controller,
-		prepared.data.calendar,
-		prepared.data.selection,
-		presentation
-	)
-	if not configured.ok:
-		return _office_open_failure(
-			configured.errors[0].get("code", "office_configuration_failed"),
-			configured.errors[0].get("message", "No se pudo configurar el Despacho.")
-		)
 	_office_session = {
 		"controller": prepared.data.controller,
 		"calendar": prepared.data.calendar,
 		"selection": prepared.data.selection.duplicate(true),
 		"presentation": presentation.duplicate(true),
 	}
-	_office_view.module_requested.connect(_on_office_module_requested)
-	_office_view.exit_requested.connect(_on_office_exit_requested)
-	_office_view.visible = true
+	var instance = club_selection_scene.instantiate()
+	if not instance is Control or not instance.has_method("configure"):
+		if instance != null:
+			instance.free()
+		_transition_in_progress = false
+		_office_session = {}
+		return _show_failure(
+			"invalid_club_selection_scene",
+			"La selección de club no contiene una interfaz válida."
+		)
+	_club_selection_view = instance
+	_club_selection_view.visible = false
+	season_host.add_child(_club_selection_view)
+	_club_selection_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	await get_tree().process_frame
+	if not is_instance_valid(_club_selection_view) or not _club_selection_view.is_node_ready():
+		return _club_selection_open_failure(
+			"club_selection_not_ready", "La selección de club no terminó de prepararse."
+		)
+	var configured = _club_selection_view.configure(
+		_office_session.controller,
+		_office_session.selection,
+		_office_session.presentation
+	)
+	if not configured.ok:
+		return _club_selection_open_failure(
+			configured.errors[0].get("code", "club_selection_configuration_failed"),
+			configured.errors[0].get("message", "No se pudo configurar la selección de club.")
+		)
+	_club_selection_view.club_confirmed.connect(_on_manager_club_confirmed)
+	_club_selection_view.back_requested.connect(_on_club_selection_back_requested)
+	_club_selection_view.visible = true
 	menu_presentation.visible = false
 	season_host.visible = true
 	back_button.visible = false
+	_clear_error()
+	_transition_in_progress = false
+	_club_selection_view.focus_initial_control()
+	return {
+		"ok": true,
+		"data": {"club_selection_view": _club_selection_view},
+		"errors": [],
+	}
+
+
+## Abre el Despacho solo tras recibir un identificador confirmado por la
+## selección activa. ManagerOffice vuelve a validar su pertenencia a la sesión.
+func open_manager_office(club_id: String) -> Dictionary:
+	if _transition_in_progress:
+		return _failure("navigation_in_progress", "Ya hay una navegación en curso.")
+	if not _development_season_pack_active:
+		return _failure(
+			"development_mode_required",
+			"El prototipo del Despacho solo está disponible con --dev-season-pack."
+		)
+	if _club_selection_view == null or not is_instance_valid(_club_selection_view) \
+			or _club_selection_view.get_parent() != season_host:
+		return _failure(
+			"club_selection_unavailable", "Debe seleccionar un club antes de abrir el Despacho."
+		)
+	if office_scene == null:
+		return _club_confirmation_failure([{
+			"code": "office_scene_unavailable",
+			"message": "No se pudo abrir el Despacho.",
+		}])
+	_transition_in_progress = true
+	_club_selection_view.set_request_in_progress(true)
+	var instance = office_scene.instantiate()
+	if not instance is Control or not instance.has_method("configure"):
+		if instance != null:
+			instance.free()
+		_transition_in_progress = false
+		return _club_confirmation_failure([{
+			"code": "invalid_office_scene",
+			"message": "El Despacho no contiene una interfaz válida.",
+		}])
+	_office_view = instance
+	_office_view.visible = false
+	season_host.add_child(_office_view)
+	_office_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	await get_tree().process_frame
+	if not is_instance_valid(_office_view) or not _office_view.is_node_ready():
+		_transition_in_progress = false
+		return _club_confirmation_failure([{
+			"code": "office_view_not_ready",
+			"message": "El Despacho no terminó de prepararse.",
+		}], _office_view if is_instance_valid(_office_view) else null)
+	var configured = _office_view.configure(
+		_office_session.controller,
+		_office_session.calendar,
+		_office_session.selection,
+		_office_session.presentation,
+		club_id
+	)
+	if not configured.ok:
+		_transition_in_progress = false
+		return _club_confirmation_failure(configured.errors, _office_view)
+	season_host.remove_child(_club_selection_view)
+	_club_selection_view.queue_free()
+	_club_selection_view = null
+	_office_session["club_id"] = club_id
+	_office_view.module_requested.connect(_on_office_module_requested)
+	_office_view.exit_requested.connect(_on_office_exit_requested)
+	_office_view.visible = true
 	_clear_error()
 	_transition_in_progress = false
 	_office_view.focus_initial_control()
@@ -424,6 +502,7 @@ func show_main_menu() -> Dictionary:
 		_office_view.queue_free()
 	_season_view = null
 	_selection_view = null
+	_club_selection_view = null
 	_office_view = null
 	_historical_view_active = false
 	_historical_season_id = ""
@@ -445,7 +524,15 @@ func _on_selection_button_pressed() -> void:
 
 
 func _on_office_button_pressed() -> void:
-	await open_manager_office()
+	await show_manager_club_selection()
+
+
+func _on_manager_club_confirmed(club_id: String) -> void:
+	await open_manager_office(club_id)
+
+
+func _on_club_selection_back_requested() -> void:
+	show_main_menu()
 
 
 func _on_office_module_requested(module: String) -> void:
@@ -492,6 +579,8 @@ func _active_content_view() -> Control:
 	var selection = _active_selection_view()
 	if selection != null:
 		return selection
+	if _club_selection_view != null and is_instance_valid(_club_selection_view):
+		return _club_selection_view
 	if _office_view != null and is_instance_valid(_office_view):
 		return _office_view
 	return null
@@ -558,15 +647,28 @@ func _show_development_pack_unavailable() -> void:
 	error_label.visible = true
 
 
-func _office_open_failure(code: String, message: String) -> Dictionary:
-	if _office_view != null and is_instance_valid(_office_view):
-		if _office_view.get_parent() == season_host:
-			season_host.remove_child(_office_view)
-		_office_view.queue_free()
-	_office_view = null
+func _club_selection_open_failure(code: String, message: String) -> Dictionary:
+	if _club_selection_view != null and is_instance_valid(_club_selection_view):
+		if _club_selection_view.get_parent() == season_host:
+			season_host.remove_child(_club_selection_view)
+		_club_selection_view.queue_free()
+	_club_selection_view = null
 	_office_session = {}
 	_transition_in_progress = false
 	return _show_failure(code, message)
+
+
+func _club_confirmation_failure(errors: Array,
+		provisional_view: Control = null) -> Dictionary:
+	if provisional_view != null and is_instance_valid(provisional_view):
+		if provisional_view.get_parent() == season_host:
+			season_host.remove_child(provisional_view)
+		provisional_view.queue_free()
+	_office_view = null
+	_transition_in_progress = false
+	if _club_selection_view != null and is_instance_valid(_club_selection_view):
+		_club_selection_view.show_request_errors(errors)
+	return {"ok": false, "data": null, "errors": errors.duplicate(true)}
 
 
 func _office_navigation_failure(errors: Array) -> Dictionary:

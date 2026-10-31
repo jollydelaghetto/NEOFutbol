@@ -158,9 +158,9 @@ func _test_office_navigation_and_keyboard() -> void:
 	var sporting_before = _sporting_snapshot(menu._office_session.controller)
 	var players_before = _player_snapshot(menu._office_session.players)
 	_check(not office.squad_button.disabled
-		and office.tactics_button.disabled and office.market_button.disabled
+		and not office.tactics_button.disabled and office.market_button.disabled
 		and office.advance_button.disabled,
-		"el Despacho habilita solo Plantilla entre las funciones nuevas")
+		"el Despacho mantiene Plantilla y Tácticas disponibles")
 	office.calendar_button.grab_focus()
 	await _press_key(KEY_TAB)
 	_check(_focus_owner() == office.squad_button,

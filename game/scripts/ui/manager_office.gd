@@ -40,6 +40,7 @@ func _ready() -> void:
 	standings_button.pressed.connect(_request_standings)
 	calendar_button.pressed.connect(_request_calendar)
 	squad_button.pressed.connect(_request_squad)
+	tactics_button.pressed.connect(_request_tactics)
 	exit_button.pressed.connect(_request_exit)
 	_configure_focus_navigation()
 	_set_future_actions_pending()
@@ -121,6 +122,8 @@ func focus_module_control(module: String) -> void:
 		calendar_button.grab_focus()
 	elif module == "squad":
 		squad_button.grab_focus()
+	elif module == "tactics":
+		tactics_button.grab_focus()
 	else:
 		standings_button.grab_focus()
 
@@ -213,7 +216,9 @@ func _render_modules(row_count: int) -> void:
 func _set_future_actions_pending() -> void:
 	squad_button.disabled = false
 	squad_button.focus_mode = Control.FOCUS_ALL
-	for button in [tactics_button, market_button, advance_button]:
+	tactics_button.disabled = false
+	tactics_button.focus_mode = Control.FOCUS_ALL
+	for button in [market_button, advance_button]:
 		button.disabled = true
 		button.focus_mode = Control.FOCUS_NONE
 
@@ -224,9 +229,11 @@ func _configure_focus_navigation() -> void:
 	calendar_button.focus_previous = calendar_button.get_path_to(standings_button)
 	calendar_button.focus_next = calendar_button.get_path_to(squad_button)
 	squad_button.focus_previous = squad_button.get_path_to(calendar_button)
-	squad_button.focus_next = squad_button.get_path_to(exit_button)
+	squad_button.focus_next = squad_button.get_path_to(tactics_button)
+	tactics_button.focus_previous = tactics_button.get_path_to(squad_button)
+	tactics_button.focus_next = tactics_button.get_path_to(exit_button)
 	exit_button.focus_next = exit_button.get_path_to(standings_button)
-	exit_button.focus_previous = exit_button.get_path_to(squad_button)
+	exit_button.focus_previous = exit_button.get_path_to(tactics_button)
 
 
 func _request_standings() -> void:
@@ -239,6 +246,10 @@ func _request_calendar() -> void:
 
 func _request_squad() -> void:
 	module_requested.emit("squad")
+
+
+func _request_tactics() -> void:
+	module_requested.emit("tactics")
 
 
 func _request_exit() -> void:

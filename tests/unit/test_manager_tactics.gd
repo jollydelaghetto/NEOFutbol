@@ -26,6 +26,7 @@ func _initialize() -> void:
 func _run() -> void:
 	var saves_before = _save_files()
 	await _test_scene_contract_and_all_clubs()
+	await _test_formation_selector()
 	await _test_responsive_field_geometry()
 	await _test_office_navigation_and_keyboard()
 	await _test_configuration_and_navigation_failures()
@@ -63,6 +64,9 @@ func _test_scene_contract_and_all_clubs() -> void:
 			and view.formation_label.text
 			== "Formación de referencia 4-4-2 · sin jugadores asignados",
 			"muestra la advertencia y el carácter provisional para %s" % club_id)
+		_check(_selector_ids(view.formation_selector) == ["4-4-2", "4-3-3", "4-2-3-1"]
+			and view.formation_selector.selected == 0,
+			"el selector comienza en 4-4-2 y conserva el orden requerido")
 		_check(view.directed_club_value.text == EXPECTED_NAMES[club_id]
 			and view.formation_value.text == "4-4-2" and view.assigned_value.text == "0"
 			and view.state_value.text == "Prototipo de visualización táctica"
@@ -96,6 +100,44 @@ func _test_scene_contract_and_all_clubs() -> void:
 		"la visualización de los cuatro clubes no modifica datos deportivos")
 
 
+func _test_formation_selector() -> void:
+	var prepared = SessionLoader.new().prepare_session("1982-83", DEV_ROOT)
+	var view = TacticsScene.instantiate()
+	root.add_child(view)
+	await process_frame
+	view.configure(
+		prepared.data.controller, prepared.data.selection,
+		prepared.data.presentation, "dev_bruma_atletico"
+	)
+	var expected_roles = {
+		"4-4-2": {"goalkeeper": 1, "defender": 4, "midfielder": 4, "forward": 2},
+		"4-3-3": {"goalkeeper": 1, "defender": 4, "midfielder": 3, "forward": 3},
+		"4-2-3-1": {"goalkeeper": 1, "defender": 4, "midfielder": 5, "forward": 1},
+	}
+	for formation_id in ["4-4-2", "4-3-3", "4-2-3-1", "4-4-2"]:
+		_select_option(view, formation_id)
+		var positions = view.field.get_reference_positions()
+		_check(view.get_context().formation == formation_id
+			and view.field.get_formation_id() == formation_id
+			and view.formation_value.text == formation_id
+			and view.formation_label.text
+			== "Formación de referencia %s · sin jugadores asignados" % formation_id,
+			"selector, cabecera, panel y campo quedan sincronizados en %s" % formation_id)
+		_check(positions.size() == 11 and _role_counts(positions) == expected_roles[formation_id]
+			and _valid_position_contract(positions),
+			"%s contiene once posiciones únicas, normalizadas y sin jugadores" % formation_id)
+		_check(view.assigned_value.text == "0"
+			and view.directed_club_value.text == "Bruma Atlético"
+			and view.season_label.text == "Temporada técnica 1982-83",
+			"%s conserva asignaciones, club y temporada" % formation_id)
+	var defensive = view.field.get_reference_positions("4-3-3")
+	defensive[0].point = Vector2(9.0, 9.0)
+	_check(view.field.get_reference_positions("4-3-3")[0].point == Vector2(0.10, 0.50),
+		"las posiciones se devuelven mediante copias defensivas")
+	view.queue_free()
+	await process_frame
+
+
 func _test_responsive_field_geometry() -> void:
 	var prepared = SessionLoader.new().prepare_session("1982-83", DEV_ROOT)
 	var view = TacticsScene.instantiate()
@@ -106,19 +148,21 @@ func _test_responsive_field_geometry() -> void:
 		prepared.data.controller, prepared.data.selection,
 		prepared.data.presentation, "dev_aurora_union"
 	)
-	for viewport_size in [Vector2(1000, 700), Vector2(800, 560)]:
-		view.size = viewport_size
-		await process_frame
-		var pitch: Rect2 = view.field.get_pitch_rect()
-		var markers: Array[Dictionary] = view.field.get_marker_rects()
-		_check(markers.size() == 11 and pitch.size.x > 0.0 and pitch.size.y > 0.0,
-			"genera once marcadores para el tamaño %s" % viewport_size)
-		_check(markers.all(func(marker): return pitch.encloses(marker.rect)),
-			"todos los marcadores permanecen dentro del campo en %s" % viewport_size)
-		_check(not _markers_overlap(markers),
-			"los marcadores no se superponen en %s" % viewport_size)
-		_check(absf(view.field.size.x / view.field.size.y - 1.6) < 0.02,
-			"AspectRatioContainer conserva la proporción del campo en %s" % viewport_size)
+	for formation_id in ["4-4-2", "4-3-3", "4-2-3-1"]:
+		view.select_formation(formation_id)
+		for viewport_size in [Vector2(1000, 700), Vector2(800, 560)]:
+			view.size = viewport_size
+			await process_frame
+			var pitch: Rect2 = view.field.get_pitch_rect()
+			var markers: Array[Dictionary] = view.field.get_marker_rects()
+			_check(markers.size() == 11 and pitch.size.x > 0.0 and pitch.size.y > 0.0,
+				"%s genera once marcadores en %s" % [formation_id, viewport_size])
+			_check(markers.all(func(marker): return pitch.encloses(marker.rect)),
+				"%s mantiene los marcadores dentro del campo en %s" % [formation_id, viewport_size])
+			_check(not _markers_overlap(markers),
+				"%s evita solapamientos en %s" % [formation_id, viewport_size])
+			_check(absf(view.field.size.x / view.field.size.y - 1.6) < 0.02,
+				"%s conserva la proporción del campo en %s" % [formation_id, viewport_size])
 	_check(view.field.focus_mode == Control.FOCUS_NONE
 		and view.field.mouse_filter == Control.MOUSE_FILTER_IGNORE,
 		"el dibujo no interfiere con el foco ni la entrada")
@@ -153,14 +197,22 @@ func _test_office_navigation_and_keyboard() -> void:
 	_check(not menu.back_button.visible and tactics.back_button.is_visible_in_tree()
 		and _visible_return_buttons(menu).size() == 1,
 		"Tácticas muestra un único retorno visible al Despacho")
-	_check(_focus_owner() == tactics.back_button,
-		"el retorno local recibe el foco inicial")
+	_check(_focus_owner() == tactics.formation_selector,
+		"el selector recibe el foco inicial")
+	await _press_key(KEY_ENTER)
+	await _press_key(KEY_DOWN)
+	await _press_key(KEY_ENTER)
+	_check(tactics.get_context().formation == "4-3-3"
+		and tactics.formation_selector.get_item_metadata(tactics.formation_selector.selected)
+		== "4-3-3",
+		"el teclado cambia la formación sin depender del índice como ID")
 	await _press_key(KEY_TAB)
 	_check(_focus_owner() == tactics.back_button,
-		"Tab conserva la única acción interactiva")
+		"Tab avanza del selector al retorno")
 	await _press_key(KEY_TAB, true)
-	_check(_focus_owner() == tactics.back_button,
-		"Mayús+Tab conserva la única acción interactiva")
+	_check(_focus_owner() == tactics.formation_selector,
+		"Mayús+Tab vuelve al selector")
+	await _press_key(KEY_TAB)
 	await _press_key(KEY_ENTER)
 	await process_frame
 	office = menu._office_view
@@ -172,6 +224,15 @@ func _test_office_navigation_and_keyboard() -> void:
 		and not menu._office_session.has("formation")
 		and not menu._office_session.has("tactics"),
 		"navegar no genera resultados, cambia fechas ni persiste una formación")
+	office.tactics_button.pressed.emit()
+	await process_frame
+	await process_frame
+	_check(menu._tactics_view.get_context().formation == "4-4-2"
+		and menu._tactics_view.formation_selector.selected == 0,
+		"una vista nueva reinicia la referencia a 4-4-2")
+	menu._tactics_view.back_button.pressed.emit()
+	await process_frame
+	office = menu._office_view
 
 	# Una activación repetida durante la transición no crea escenas ni señales extra.
 	office.tactics_button.pressed.emit()
@@ -214,6 +275,17 @@ func _test_configuration_and_navigation_failures() -> void:
 		prepared.data.presentation, "dev_aurora_union"
 	)
 	var context_before = view.get_context()
+	view.select_formation("4-3-3")
+	var formation_before = view.get_context().formation
+	var selector_before = view.formation_selector.selected
+	var rejected_formation = view.select_formation("3-3-4-unknown")
+	_check(not rejected_formation.ok
+		and rejected_formation.errors[0].code == "unknown_reference_formation"
+		and view.get_context().formation == formation_before
+		and view.field.get_formation_id() == formation_before
+		and view.formation_selector.selected == selector_before,
+		"una formación desconocida conserva campo, selector y referencia válidos")
+	context_before = view.get_context()
 	var wrong_selection = prepared.data.selection.duplicate(true)
 	wrong_selection.competition_id = "other_competition"
 	var mismatch = view.configure(
@@ -296,11 +368,31 @@ func _role_counts(positions: Array[Dictionary]) -> Dictionary:
 
 
 func _valid_position_contract(positions: Array[Dictionary]) -> bool:
+	var slot_ids: Dictionary = {}
 	for slot in positions:
 		if not slot.has("slot_id") or not slot.has("role") or not slot.has("label") \
-				or not slot.has("point") or slot.has("player_id"):
+				or not slot.has("point") or slot.has("player_id") \
+				or slot_ids.has(slot.slot_id) or not slot.point is Vector2 \
+				or slot.point.x < 0.0 or slot.point.x > 1.0 \
+				or slot.point.y < 0.0 or slot.point.y > 1.0:
 			return false
+		slot_ids[slot.slot_id] = true
 	return true
+
+
+func _selector_ids(selector: OptionButton) -> Array[String]:
+	var identifiers: Array[String] = []
+	for index in selector.item_count:
+		identifiers.append(selector.get_item_metadata(index))
+	return identifiers
+
+
+func _select_option(view, formation_id: String) -> void:
+	for index in view.formation_selector.item_count:
+		if view.formation_selector.get_item_metadata(index) == formation_id:
+			view.formation_selector.select(index)
+			view.formation_selector.item_selected.emit(index)
+			return
 
 
 func _markers_overlap(markers: Array[Dictionary]) -> bool:

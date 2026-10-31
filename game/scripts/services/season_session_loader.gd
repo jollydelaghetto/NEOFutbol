@@ -3,10 +3,11 @@ extends RefCounted
 
 const Catalog = preload("res://game/scripts/services/season_catalog_service.gd")
 const Fixture = preload("res://game/scripts/data/match_fixture.gd")
+const Player = preload("res://game/scripts/data/player_season.gd")
 
 
 ## Relee, valida y prepara una sesión deportiva nueva. data contiene season_id,
-## selection, controller, calendar, presentation y origin. Los metadatos de
+## selection, controller, calendar, players, presentation y origin. Los metadatos de
 ## origen describen declaraciones del pack; no certifican hashes ni derechos.
 func prepare_session(season_id: String,
 		root_path: String = Catalog.DEFAULT_ROOT) -> Dictionary:
@@ -27,6 +28,7 @@ func prepare_session(season_id: String,
 			"selection": source.selection.duplicate(true),
 			"controller": source.controller,
 			"calendar": _copy_fixtures(source.fixtures),
+			"players": _copy_players(source.players),
 			"presentation": {
 				"season_name": season_id,
 				"competition_name": source.selection.competition_id,
@@ -128,4 +130,18 @@ func _copy_fixtures(source: Array[Fixture]) -> Array[Fixture]:
 		fixture.scheduled_date = original.scheduled_date
 		fixture.metadata = original.metadata.duplicate(true)
 		copied.append(fixture)
+	return copied
+
+
+func _copy_players(source: Array[Player]) -> Array[Player]:
+	var copied: Array[Player] = []
+	for original in source:
+		var player = Player.new()
+		player.player_id = original.player_id
+		player.season_id = original.season_id
+		player.club_id = original.club_id
+		player.historical_data = original.historical_data.duplicate(true)
+		player.game_data = original.game_data.duplicate(true)
+		player.metadata = original.metadata.duplicate(true)
+		copied.append(player)
 	return copied

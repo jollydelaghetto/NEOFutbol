@@ -39,6 +39,7 @@ var _club_id := ""
 func _ready() -> void:
 	standings_button.pressed.connect(_request_standings)
 	calendar_button.pressed.connect(_request_calendar)
+	squad_button.pressed.connect(_request_squad)
 	exit_button.pressed.connect(_request_exit)
 	_configure_focus_navigation()
 	_set_future_actions_pending()
@@ -118,6 +119,8 @@ func focus_initial_control() -> void:
 func focus_module_control(module: String) -> void:
 	if module == "calendar":
 		calendar_button.grab_focus()
+	elif module == "squad":
+		squad_button.grab_focus()
 	else:
 		standings_button.grab_focus()
 
@@ -208,7 +211,9 @@ func _render_modules(row_count: int) -> void:
 
 
 func _set_future_actions_pending() -> void:
-	for button in [squad_button, tactics_button, market_button, advance_button]:
+	squad_button.disabled = false
+	squad_button.focus_mode = Control.FOCUS_ALL
+	for button in [tactics_button, market_button, advance_button]:
 		button.disabled = true
 		button.focus_mode = Control.FOCUS_NONE
 
@@ -216,10 +221,12 @@ func _set_future_actions_pending() -> void:
 func _configure_focus_navigation() -> void:
 	standings_button.focus_next = standings_button.get_path_to(calendar_button)
 	standings_button.focus_previous = standings_button.get_path_to(exit_button)
-	calendar_button.focus_next = calendar_button.get_path_to(exit_button)
 	calendar_button.focus_previous = calendar_button.get_path_to(standings_button)
+	calendar_button.focus_next = calendar_button.get_path_to(squad_button)
+	squad_button.focus_previous = squad_button.get_path_to(calendar_button)
+	squad_button.focus_next = squad_button.get_path_to(exit_button)
 	exit_button.focus_next = exit_button.get_path_to(standings_button)
-	exit_button.focus_previous = exit_button.get_path_to(calendar_button)
+	exit_button.focus_previous = exit_button.get_path_to(squad_button)
 
 
 func _request_standings() -> void:
@@ -228,6 +235,10 @@ func _request_standings() -> void:
 
 func _request_calendar() -> void:
 	module_requested.emit("calendar")
+
+
+func _request_squad() -> void:
+	module_requested.emit("squad")
 
 
 func _request_exit() -> void:

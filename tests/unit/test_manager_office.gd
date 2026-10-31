@@ -81,12 +81,13 @@ func _test_office_scene_contract() -> void:
 	_check(view.news_status.text == "Noticias — pendiente de implementación"
 		and view.finance_status.text == "Finanzas — pendiente de implementación",
 		"los paneles provisionales no inventan noticias ni finanzas")
-	_check(view.squad_button.disabled and view.tactics_button.disabled
+	_check(not view.squad_button.disabled and view.tactics_button.disabled
 		and view.market_button.disabled and view.advance_button.disabled,
-		"las acciones futuras permanecen deshabilitadas")
-	_check([view.squad_button, view.tactics_button, view.market_button,
-		view.advance_button].all(func(button): return button.focus_mode == Control.FOCUS_NONE),
-		"los controles pendientes no reciben foco")
+		"Plantilla está disponible y las demás acciones futuras permanecen deshabilitadas")
+	_check(view.squad_button.focus_mode == Control.FOCUS_ALL
+		and [view.tactics_button, view.market_button, view.advance_button].all(
+			func(button): return button.focus_mode == Control.FOCUS_NONE),
+		"Plantilla recibe foco y los controles pendientes no lo reciben")
 	view.focus_initial_control()
 	_check(_focus_owner() == view.standings_button,
 		"la clasificación recibe el foco inicial visible")
@@ -96,6 +97,10 @@ func _test_office_scene_contract() -> void:
 	await _press_key(KEY_TAB, true)
 	_check(_focus_owner() == view.standings_button,
 		"Mayús+Tab recupera la clasificación")
+	await _press_key(KEY_TAB)
+	await _press_key(KEY_TAB)
+	_check(_focus_owner() == view.squad_button,
+		"Tab incorpora Plantilla a la ruta funcional")
 	_check(_fixture_snapshot(prepared.data.calendar) == fixture_snapshot
 		and _controller_snapshot(prepared.data.controller) == controller_snapshot,
 		"configurar y recorrer el Despacho no modifica datos deportivos")

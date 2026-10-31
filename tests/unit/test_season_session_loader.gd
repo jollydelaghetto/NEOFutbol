@@ -5,6 +5,7 @@ const Catalog = preload("res://game/scripts/services/season_catalog_service.gd")
 const Controller = preload("res://game/scripts/services/season_controller.gd")
 const Club = preload("res://game/scripts/data/club_season.gd")
 const Fixture = preload("res://game/scripts/data/match_fixture.gd")
+const Player = preload("res://game/scripts/data/player_season.gd")
 
 const SAVE_DIRECTORY = "user://neofutbol/sporting_state"
 
@@ -121,6 +122,9 @@ func _initialize() -> void:
 	_check(first.data.controller is Controller, "controlador inicializado devuelto")
 	_check(first.data.calendar is Array and first.data.calendar.size() == 1
 		and first.data.calendar[0] is Fixture, "calendario tipado devuelto")
+	_check(first.data.players is Array and first.data.players.size() == 1
+		and first.data.players.all(func(player): return player is Player),
+		"jugadores tipados ya validados devueltos en la sesión")
 	_check(first.data.presentation == {
 		"season_name": "1982-83", "competition_name": "league_1982-83",
 		"club_names": {},

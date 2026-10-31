@@ -5,6 +5,7 @@ const DEFAULT_SEASON_SCENE = preload("res://game/scenes/season_overview.tscn")
 const DEFAULT_SELECTION_SCENE = preload("res://game/scenes/season_selection.tscn")
 const DEFAULT_OFFICE_SCENE = preload("res://game/scenes/manager_office.tscn")
 const DEFAULT_CLUB_SELECTION_SCENE = preload("res://game/scenes/manager_club_selection.tscn")
+const DEFAULT_SQUAD_SCENE = preload("res://game/scenes/manager_squad.tscn")
 const SessionLoader = preload("res://game/scripts/services/season_session_loader.gd")
 const DEFAULT_SEASON_ROOT = "res://data/seasons"
 const DEVELOPMENT_SEASON_ROOT = "res://data/dev/seasons"
@@ -19,6 +20,7 @@ const DEVELOPMENT_REQUIRED_FILES = [
 @export var selection_scene: PackedScene = DEFAULT_SELECTION_SCENE
 @export var office_scene: PackedScene = DEFAULT_OFFICE_SCENE
 @export var club_selection_scene: PackedScene = DEFAULT_CLUB_SELECTION_SCENE
+@export var squad_scene: PackedScene = DEFAULT_SQUAD_SCENE
 @export var season_root_path := DEFAULT_SEASON_ROOT
 
 @onready var menu_presentation: CenterContainer = %MenuPresentation
@@ -34,6 +36,7 @@ var _season_view: Control = null
 var _selection_view: Control = null
 var _club_selection_view: Control = null
 var _office_view: Control = null
+var _squad_view: Control = null
 var _transition_in_progress := false
 var _historical_view_active := false
 var _historical_season_id := ""
@@ -189,6 +192,7 @@ func show_manager_club_selection() -> Dictionary:
 	_office_session = {
 		"controller": prepared.data.controller,
 		"calendar": prepared.data.calendar,
+		"players": prepared.data.players,
 		"selection": prepared.data.selection.duplicate(true),
 		"presentation": presentation.duplicate(true),
 	}
@@ -308,8 +312,10 @@ func open_office_module(module: String) -> Dictionary:
 	if _office_view == null or not is_instance_valid(_office_view) \
 			or _office_view.get_parent() != season_host:
 		return _failure("office_unavailable", "No hay un Despacho activo.")
-	if module not in ["standings", "calendar"]:
+	if module not in ["standings", "calendar", "squad"]:
 		return _failure("unknown_office_module", "El módulo solicitado no existe.")
+	if module == "squad":
+		return await _open_squad_module()
 	if season_scene == null:
 		return _office_navigation_failure([{
 			"code": "season_scene_unavailable",
@@ -361,6 +367,53 @@ func open_office_module(module: String) -> Dictionary:
 	return {"ok": true, "data": {"season_view": _season_view, "module": module}, "errors": []}
 
 
+func _open_squad_module() -> Dictionary:
+	if squad_scene == null:
+		return _office_navigation_failure([{
+			"code": "squad_scene_unavailable",
+			"message": "No se pudo abrir la Plantilla.",
+		}])
+	_transition_in_progress = true
+	var instance = squad_scene.instantiate()
+	if not instance is Control or not instance.has_method("configure"):
+		if instance != null:
+			instance.free()
+		_transition_in_progress = false
+		return _office_navigation_failure([{
+			"code": "invalid_squad_scene",
+			"message": "La Plantilla no contiene una interfaz válida.",
+		}])
+	instance.visible = false
+	season_host.add_child(instance)
+	instance.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	await get_tree().process_frame
+	var configured = instance.configure(
+		_office_session.players,
+		_office_session.selection,
+		_office_session.presentation,
+		_office_session.club_id
+	)
+	if not configured.ok:
+		season_host.remove_child(instance)
+		instance.queue_free()
+		_transition_in_progress = false
+		return _office_navigation_failure(configured.errors)
+	season_host.remove_child(_office_view)
+	_squad_view = instance
+	_squad_view.back_requested.connect(return_to_manager_office)
+	_squad_view.visible = true
+	_office_module_active = true
+	_office_module = "squad"
+	# ManagerSquad ofrece su propio retorno dentro de la ruta de foco. Mantener
+	# oculto el retorno global evita dos controles equivalentes en la pantalla.
+	back_button.visible = false
+	back_button.disabled = false
+	back_button.text = "Volver al Despacho"
+	_squad_view.focus_initial_control()
+	_transition_in_progress = false
+	return {"ok": true, "data": {"squad_view": _squad_view, "module": "squad"}, "errors": []}
+
+
 func return_to_manager_office() -> Dictionary:
 	if _transition_in_progress:
 		return _failure("navigation_in_progress", "Ya hay una navegación en curso.")
@@ -368,11 +421,13 @@ func return_to_manager_office() -> Dictionary:
 		return _failure("office_module_unavailable", "No hay un módulo del Despacho activo.")
 	_transition_in_progress = true
 	var previous_module = _office_module
-	var active_view = _active_season_view()
+	var active_view: Control = _active_squad_view() if previous_module == "squad" \
+		else _active_season_view()
 	if active_view != null:
 		season_host.remove_child(active_view)
 		active_view.queue_free()
 	_season_view = null
+	_squad_view = null
 	season_host.add_child(_office_view)
 	_office_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_office_view.visible = true
@@ -479,6 +534,7 @@ func return_to_season_selection() -> Dictionary:
 		season_host.remove_child(active_view)
 		active_view.queue_free()
 	_season_view = null
+	_squad_view = null
 	_historical_view_active = false
 	_historical_season_id = ""
 	_transition_in_progress = false
@@ -504,6 +560,7 @@ func show_main_menu() -> Dictionary:
 	_selection_view = null
 	_club_selection_view = null
 	_office_view = null
+	_squad_view = null
 	_historical_view_active = false
 	_historical_season_id = ""
 	_office_module_active = false
@@ -572,7 +629,17 @@ func _active_selection_view() -> Control:
 	return _selection_view
 
 
+func _active_squad_view() -> Control:
+	if _squad_view == null or not is_instance_valid(_squad_view):
+		_squad_view = null
+		return null
+	return _squad_view
+
+
 func _active_content_view() -> Control:
+	var squad = _active_squad_view()
+	if squad != null:
+		return squad
 	var season = _active_season_view()
 	if season != null:
 		return season

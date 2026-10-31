@@ -123,9 +123,15 @@ func _player_name(player: Player) -> String:
 
 
 func _data_summary(player: Player) -> String:
-	if player.historical_data.is_empty() and player.game_data.is_empty():
-		return "Sin datos"
-	return "Datos documentados"
+	var has_historical = not player.historical_data.is_empty()
+	var has_game = not player.game_data.is_empty()
+	if has_historical and has_game:
+		return "Datos históricos y de juego"
+	if has_historical:
+		return "Datos históricos"
+	if has_game:
+		return "Datos de juego"
+	return "Sin datos"
 
 
 func _valid_display_name(value: Variant) -> bool:

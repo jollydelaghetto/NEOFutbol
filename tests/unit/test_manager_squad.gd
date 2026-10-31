@@ -83,7 +83,7 @@ func _test_validated_players_and_all_clubs() -> void:
 		_check(menu._squad_view != null
 			and _rows(menu._squad_view.players_tree)[0].player_id == expected[0],
 			"el flujo Menú → club → Despacho abre Plantilla para %s" % club_id)
-		menu.back_button.pressed.emit()
+		menu._squad_view.back_button.pressed.emit()
 		await process_frame
 		menu._office_view.exit_button.pressed.emit()
 		await process_frame
@@ -101,22 +101,32 @@ func _test_fallback_empty_and_exact_filtering() -> void:
 	var presentation = {"club_names": {"club_a": "Club A"}}
 	var valid = _player("b_player", "1982-83", "club_a", " Nombre exacto ")
 	var fallback = _player("a_player", "1982-83", "club_a", "Nombre\ninválido")
+	var historical = _player("c_historical", "1982-83", "club_a", "Histórico")
+	historical.historical_data = {"source_value": 1}
+	var game = _player("d_game", "1982-83", "club_a", "Juego")
+	game.game_data = {"rating": 1}
 	var other_club = _player("other", "1982-83", "Club_A", "No visible")
 	var other_season = _player("old", "1981-82", "club_a", "No visible")
 	var view = SquadScene.instantiate()
 	root.add_child(view)
 	await process_frame
-	var candidates: Array[Player] = [valid, fallback, other_club, other_season]
+	var candidates: Array[Player] = [
+		valid, fallback, historical, game, other_club, other_season,
+	]
 	var configured = view.configure(candidates, selection, presentation, "club_a")
 	var rows = _rows(view.players_tree)
 	_check(configured.ok and rows.map(func(row): return row.player_id)
-		== ["a_player", "b_player"],
+		== ["a_player", "b_player", "c_historical", "d_game"],
 		"filtra temporada y club exactamente y ordena por player_id")
 	_check(rows[0].name == "a_player" and rows[1].name == " Nombre exacto ",
 		"un nombre inválido usa player_id y un nombre válido se conserva exactamente")
 	valid.metadata.display_name = "Mutado fuera"
 	_check(_rows(view.players_tree)[1].name == " Nombre exacto ",
 		"la vista mantiene una copia defensiva del nombre presentado")
+	rows = _rows(view.players_tree)
+	_check(rows[0].data == "Sin datos" and rows[1].data == "Sin datos"
+		and rows[2].data == "Datos históricos" and rows[3].data == "Datos de juego",
+		"distingue datos históricos, datos de juego y ausencia de ambos")
 	var no_players: Array[Player] = []
 	var empty = view.configure(no_players, selection, presentation, "club_a")
 	_check(empty.ok and empty.data.player_count == 0 and view.empty_label.visible
@@ -166,6 +176,9 @@ func _test_office_navigation_and_keyboard() -> void:
 		"selection": menu._office_session.selection,
 		"club_id": "dev_cometa_fc", "player_ids": ["dev_player_cometa_01"],
 	}, "la pantalla conserva sesión, club y jugador seleccionados")
+	_check(not menu.back_button.visible and squad.back_button.is_visible_in_tree()
+		and _visible_return_buttons(menu).size() == 1,
+		"Plantilla presenta un único botón visible Volver al Despacho")
 	_check(_focus_owner() == squad.players_tree,
 		"la tabla recibe foco visible al entrar")
 	await _press_key(KEY_TAB)
@@ -188,13 +201,16 @@ func _test_office_navigation_and_keyboard() -> void:
 	await process_frame
 	_check(menu._squad_view != null and menu.season_host.get_child_count() == 1,
 		"activaciones repetidas no crean vistas duplicadas")
-	menu.back_button.pressed.emit()
+	menu._squad_view.back_button.pressed.emit()
 	await process_frame
 	menu._office_view.standings_button.pressed.emit()
 	await process_frame
 	await process_frame
 	_check(menu._season_view != null and menu._office_module == "standings",
 		"la clasificación continúa funcionando después de Plantilla")
+	_check(menu.back_button.is_visible_in_tree()
+		and _visible_return_buttons(menu).size() == 1,
+		"clasificación conserva un único retorno global")
 	menu.back_button.pressed.emit()
 	await process_frame
 	menu._office_view.calendar_button.pressed.emit()
@@ -262,6 +278,14 @@ func _rows(tree: Tree) -> Array[Dictionary]:
 		})
 		item = item.get_next()
 	return rows
+
+
+func _visible_return_buttons(parent: Node) -> Array[Node]:
+	var buttons: Array[Node] = []
+	for candidate in parent.find_children("*", "Button", true, false):
+		if candidate.text == "Volver al Despacho" and candidate.is_visible_in_tree():
+			buttons.append(candidate)
+	return buttons
 
 
 func _player_snapshot(players: Array) -> Array[Dictionary]:

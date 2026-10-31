@@ -404,7 +404,9 @@ func _open_squad_module() -> Dictionary:
 	_squad_view.visible = true
 	_office_module_active = true
 	_office_module = "squad"
-	back_button.visible = true
+	# ManagerSquad ofrece su propio retorno dentro de la ruta de foco. Mantener
+	# oculto el retorno global evita dos controles equivalentes en la pantalla.
+	back_button.visible = false
 	back_button.disabled = false
 	back_button.text = "Volver al Despacho"
 	_squad_view.focus_initial_control()

@@ -105,6 +105,22 @@ layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.42, 0.42, 1)
 autowrap_mode = 2
 
+[node name="FormationSelection" type="HBoxContainer" parent="Margin/Page"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="FormationCaption" type="Label" parent="Margin/Page/FormationSelection"]
+layout_mode = 2
+text = "Formación de referencia"
+vertical_alignment = 1
+
+[node name="FormationSelector" type="OptionButton" parent="Margin/Page/FormationSelection"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(190, 42)
+layout_mode = 2
+focus_mode = 2
+
 [node name="FormationLabel" type="Label" parent="Margin/Page"]
 unique_name_in_owner = true
 layout_mode = 2

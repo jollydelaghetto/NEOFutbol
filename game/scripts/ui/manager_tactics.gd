@@ -19,6 +19,7 @@ signal back_requested
 @onready var assigned_value: Label = %AssignedValue
 @onready var state_value: Label = %StateValue
 @onready var simulation_notice: Label = %SimulationNotice
+@onready var info_scroll: ScrollContainer = %InfoScroll
 @onready var selection_prompt: Label = %SelectionPrompt
 @onready var selection_details: VBoxContainer = %SelectionDetails
 @onready var selected_label_value: Label = %SelectedLabelValue
@@ -33,6 +34,7 @@ var _selection: Dictionary = {}
 var _presentation: Dictionary = {}
 var _club_id := ""
 var _formation_id := DEFAULT_FORMATION_ID
+var _selection_render_revision := 0
 
 
 func _ready() -> void:
@@ -185,10 +187,13 @@ func _on_position_selection_changed(position: Variant) -> void:
 
 
 func _render_selected_position(position: Variant) -> void:
+	_selection_render_revision += 1
+	var revision = _selection_render_revision
 	if position == null:
 		selection_prompt.text = "Selecciona una posición del campo"
 		selection_prompt.visible = true
 		selection_details.visible = false
+		_reset_info_scroll(revision)
 		return
 	selection_prompt.text = "Posición seleccionada"
 	selection_prompt.visible = true
@@ -197,6 +202,26 @@ func _render_selected_position(position: Variant) -> void:
 	selected_slot_value.text = position.slot_id
 	selected_line_value.text = _line_name(position.role)
 	selected_status_value.text = "Sin jugador asignado"
+	_keep_selection_details_visible(revision)
+
+
+func _keep_selection_details_visible(revision: int) -> void:
+	# La visibilidad cambia el tamaño mínimo del contenido. Esperar al siguiente
+	# frame permite que los contenedores actualicen el límite de desplazamiento.
+	await get_tree().process_frame
+	if revision == _selection_render_revision and is_instance_valid(selection_details):
+		# Los detalles son el último bloque del contenido. El valor se limita al
+		# máximo real, dejando el bloque completo dentro del área visible.
+		info_scroll.scroll_vertical = ceili(info_scroll.get_v_scroll_bar().max_value)
+
+
+func _reset_info_scroll(revision: int) -> void:
+	call_deferred("_apply_info_scroll_reset", revision)
+
+
+func _apply_info_scroll_reset(revision: int) -> void:
+	if revision == _selection_render_revision and is_instance_valid(info_scroll):
+		info_scroll.scroll_vertical = 0
 
 
 func _line_name(role: String) -> String:

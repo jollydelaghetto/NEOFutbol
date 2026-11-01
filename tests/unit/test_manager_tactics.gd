@@ -29,6 +29,7 @@ func _run() -> void:
 	await _test_formation_selector()
 	await _test_position_selection_contract()
 	await _test_pointer_position_selection()
+	await _test_keyboard_selection_details_visibility()
 	await _test_responsive_field_geometry()
 	await _test_office_navigation_and_keyboard()
 	await _test_configuration_and_navigation_failures()
@@ -215,24 +216,99 @@ func _test_pointer_position_selection() -> void:
 		prepared.data.controller, prepared.data.selection,
 		prepared.data.presentation, "dev_duna_deportivo"
 	)
+	var changes: Array = []
+	view.field.selection_changed.connect(func(position): changes.append(position))
 	for viewport_size in [Vector2(1000, 700), Vector2(800, 560)]:
 		view.size = viewport_size
 		await process_frame
 		var markers = view.field.get_marker_rects()
-		_click_field(view.field, markers[3].rect.get_center())
-		_check(view.field.get_selected_position().slot_id == markers[3].slot_id
-			and view.field.has_focus(),
-			"el centro real del marcador se selecciona con ratón en %s" % viewport_size)
+		view.field.clear_selection()
+		view.formation_selector.grab_focus()
+		await process_frame
+		var changes_before = changes.size()
+		await _click_field_via_viewport(
+			view.field, _empty_field_point(view.field), true
+		)
+		_check(view.field.get_selected_position() == null and view.field.has_focus()
+			and changes.size() == changes_before,
+			"el primer clic vacío entregado por el viewport enfoca sin seleccionar en %s"
+			% viewport_size)
+		view.formation_selector.grab_focus()
+		await process_frame
+		changes_before = changes.size()
+		await _click_field_via_viewport(
+			view.field, markers[3].rect.get_center(), true
+		)
+		var clicked_position = view.field.get_selected_position()
+		_check(clicked_position != null and clicked_position.slot_id == markers[3].slot_id
+			and view.field.has_focus() and changes.size() == changes_before + 1,
+			"el primer clic real selecciona solo su marcador y emite una señal en %s"
+			% viewport_size)
 		var selected_before = view.field.get_selected_position()
-		_click_field(view.field, _empty_field_point(view.field))
-		_click_field(view.field, Vector2(1.0, 1.0))
-		_click_field(view.field, markers[5].rect.position)
+		await _click_field_via_viewport(view.field, _empty_field_point(view.field))
+		await _click_field_via_viewport(view.field, Vector2(1.0, 1.0))
+		await _click_field_via_viewport(view.field, markers[5].rect.position)
 		_check(view.field.get_selected_position() == selected_before,
 			"los clics vacíos, fuera del terreno o fuera del radio conservan la selección en %s"
 			% viewport_size)
-		_click_field(view.field, markers[8].rect.get_center())
-		_check(view.field.get_selected_position().slot_id == markers[8].slot_id,
+		changes_before = changes.size()
+		await _click_field_via_viewport(view.field, markers[8].rect.get_center())
+		clicked_position = view.field.get_selected_position()
+		_check(clicked_position != null and clicked_position.slot_id == markers[8].slot_id,
 			"un segundo clic sustituye la única selección activa en %s" % viewport_size)
+		_check(changes.size() == changes_before + 1,
+			"cambiar de marcador mediante el viewport emite una sola señal en %s"
+			% viewport_size)
+	view.queue_free()
+	await process_frame
+
+
+func _test_keyboard_selection_details_visibility() -> void:
+	var prepared = SessionLoader.new().prepare_session("1982-83", DEV_ROOT)
+	var view = TacticsScene.instantiate()
+	root.add_child(view)
+	view.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	await process_frame
+	view.configure(
+		prepared.data.controller, prepared.data.selection,
+		prepared.data.presentation, "dev_duna_deportivo"
+	)
+	for viewport_size in [Vector2(1000, 700), Vector2(800, 560)]:
+		view.size = viewport_size
+		view.select_formation("4-4-2")
+		view.field.clear_selection()
+		view.formation_selector.grab_focus()
+		await process_frame
+		await _press_key(KEY_TAB)
+		await process_frame
+		await process_frame
+		_check(view.field.get_selected_position().slot_id == "442_gk"
+			and _control_visible_in_scroll(view.info_scroll, view.selection_details),
+			"Tab selecciona el portero y muestra sus detalles completos en %s"
+			% viewport_size)
+		await _press_key(KEY_RIGHT)
+		await process_frame
+		await process_frame
+		_check(view.field.get_selected_position().role == "defender"
+			and _control_visible_in_scroll(view.info_scroll, view.selection_details),
+			"las flechas mantienen accesibles los detalles desplazados en %s"
+			% viewport_size)
+		await _press_key(KEY_TAB, true)
+		_select_option(view, "4-2-3-1")
+		await process_frame
+		_check(_focus_owner() == view.formation_selector
+			and view.field.get_selected_position() == null
+			and view.info_scroll.scroll_vertical == 0,
+			"cambiar la formación restaura el panel sin alterar el foco en %s"
+			% viewport_size)
+		await _press_key(KEY_TAB)
+		await process_frame
+		await process_frame
+		await process_frame
+		_check(view.field.get_selected_position().slot_id == "4231_gk"
+			and _control_visible_in_scroll(view.info_scroll, view.selection_details),
+			"la nueva formación vuelve a revelar los detalles por teclado en %s"
+			% viewport_size)
 	view.queue_free()
 	await process_frame
 
@@ -306,7 +382,9 @@ func _test_office_navigation_and_keyboard() -> void:
 		== "4-3-3",
 		"el teclado cambia la formación sin depender del índice como ID")
 	await _press_key(KEY_TAB)
+	await process_frame
 	_check(_focus_owner() == tactics.field and tactics.field.has_focus()
+		and tactics.field.get_selected_position() != null
 		and tactics.field.get_selected_position().slot_id == "433_gk",
 		"Tab lleva el foco visible al campo y selecciona el portero de forma determinista")
 	var formation_before_arrows = tactics.get_context().formation
@@ -526,12 +604,22 @@ func _select_option(view, formation_id: String) -> void:
 			return
 
 
-func _click_field(field: Control, local_position: Vector2) -> void:
-	var event = InputEventMouseButton.new()
-	event.button_index = MOUSE_BUTTON_LEFT
-	event.pressed = true
-	event.position = local_position
-	field._gui_input(event)
+func _click_field_via_viewport(field: Control, local_position: Vector2,
+		focus_before_delivery := false) -> void:
+	var viewport_position = field.get_global_transform_with_canvas() * local_position
+	if focus_before_delivery:
+		# Reproduce el orden observado en el viewport: focus_entered puede llegar
+		# antes de que el Control reciba el InputEventMouseButton.
+		field.grab_focus()
+	for pressed in [true, false]:
+		var event = InputEventMouseButton.new()
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = pressed
+		event.position = viewport_position
+		event.global_position = viewport_position
+		root.push_input(event, true)
+		await process_frame
+	await process_frame
 
 
 func _empty_field_point(field) -> Vector2:
@@ -550,6 +638,12 @@ func _empty_field_point(field) -> Vector2:
 			if outside_markers:
 				return point
 	return pitch.get_center()
+
+
+func _control_visible_in_scroll(scroll: ScrollContainer, control: Control) -> bool:
+	var viewport_rect = scroll.get_global_rect().grow(0.5)
+	var control_rect = control.get_global_rect()
+	return viewport_rect.encloses(control_rect)
 
 
 func _markers_overlap(markers: Array[Dictionary]) -> bool:

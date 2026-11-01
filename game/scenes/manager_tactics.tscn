@@ -162,6 +162,7 @@ size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StylePanel")
 
 [node name="InfoScroll" type="ScrollContainer" parent="Margin/Page/Content/InfoPanel"]
+unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 horizontal_scroll_mode = 0

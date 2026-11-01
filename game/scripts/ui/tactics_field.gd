@@ -64,6 +64,8 @@ signal position_confirmed(position: Dictionary)
 
 var _formation_id := DEFAULT_FORMATION_ID
 var _selected_slot_id := ""
+var _focus_generation := 0
+var _mouse_focus_generation := -1
 
 
 func _ready() -> void:
@@ -77,6 +79,9 @@ func _ready() -> void:
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT \
 			and event.pressed:
+		# El viewport puede asignar el foco antes de entregar este evento. Marcar
+		# esta entrada impide que el foco causado por ratón inicialice el portero.
+		_mouse_focus_generation = _focus_generation
 		var slot_id = _slot_at_position(event.position)
 		if not slot_id.is_empty():
 			select_slot(slot_id)
@@ -239,9 +244,17 @@ func get_marker_rects() -> Array[Dictionary]:
 
 
 func _on_focus_entered() -> void:
+	_focus_generation += 1
+	call_deferred("_initialize_keyboard_focus", _focus_generation)
+	queue_redraw()
+
+
+func _initialize_keyboard_focus(generation: int) -> void:
+	if generation != _focus_generation or not has_focus() \
+			or generation == _mouse_focus_generation:
+		return
 	if _selected_slot_id.is_empty():
 		_select_first_position()
-	queue_redraw()
 
 
 func _select_first_position() -> void:

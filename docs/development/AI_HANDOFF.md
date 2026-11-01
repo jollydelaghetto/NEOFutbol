@@ -1,8 +1,8 @@
 # Traspaso de desarrollo para una IA — NEOFutbol
 
 **Estado comprobado:** 1 de noviembre de 2026.
-**Rama de referencia integrada:** `main`, commit `96da25f00cd417d2770314c4a74650c11829686b` (PR #39).
-**Trabajo en curso, NO integrado:** [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40), último HEAD consultado `43feddf755ad09c438d3e4151e75a01599b2fff1`.
+**Rama de referencia integrada:** `main`, commit `76df4ac67d762a8beb1b244167d930187bd3c5ea` (PR #40).
+**Último trabajo integrado:** [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40), fusionado mediante squash en `76df4ac`. No hay una tarea funcional posterior aprobada en este traspaso.
 **Naturaleza:** fotografía de situación y criterios de continuidad, no modificación de los requisitos de producto. Antes de programar, volver a comprobar `main`, PR abiertos y CI.
 
 > **Si eres la IA que retoma el proyecto:** lee primero [`AGENTS.md`](../../AGENTS.md), después este archivo, el [GDD/TDD v1.1](../design/NEOFutbol_GDD_TDD_v1.1.md) en las secciones pertinentes y, por último, el código y las pruebas que vas a cambiar. El GDD define el producto deseado; este documento aclara **qué existe realmente**. No confundas lo diseñado, lo probado y lo integrado.
@@ -35,7 +35,7 @@ NEOFutbol es un **manager de fútbol histórico para un jugador**, inicialmente 
 | Plantilla | Consulta de jugadores realmente cargados para el club; solo lectura, sin atributos inventados (PR #37). |
 | Tácticas: campo | Campo 2D dibujado con Godot; once **posiciones vacías**, sin `player_id` ni efectos deportivos (PR #38). |
 | Tácticas: selector | Referencias visuales **4-4-2, 4-3-3 y 4-2-3-1**; cambio local, no persistente (PR #39). |
-| Tácticas: seleccionar una posición | **NO está en main**; está en el PR #40 pendiente de integración y revisión final. |
+| Tácticas: seleccionar una posición | **Integrado en main (PR #40):** clic sobre un marcador, selección por teclado, resaltado y panel informativo. Selección solo visual, sin `player_id` ni guardado. |
 | Mercado / Avanzar día desde Despacho | Controles pendientes o deshabilitados; no fingir que funcionan. |
 | Alineación, once titular, suplentes, asignación de jugadores | **Pendientes**. |
 | Motor de partido 2D arcade, carrera completa y economía integrada | **Pendientes**, aunque existen servicios deportivos aislados. |
@@ -73,19 +73,18 @@ Modelos y parsers residen en `game/scripts/data/` y otras carpetas de infraestru
 
 En distribución pública **no** incluir escudos, fotos, bases de datos o recursos con derechos no verificados. Los datos públicos, identidades intercambiables y licencias siguen las reglas del GDD. El código mantiene **AGPL-3.0-only**.
 
-## 3. Punto exacto del relevo: PR #40
+## 3. Punto exacto del relevo: PR #40 integrado
 
-**PR en curso:** [#40 — Selección interactiva de posiciones tácticas](https://github.com/jollydelaghetto/NEOFutbol/pull/40).
+**Último PR funcional integrado:** [#40 — Selección interactiva de posiciones tácticas](https://github.com/jollydelaghetto/NEOFutbol/pull/40), fusionado mediante squash en `76df4ac67d762a8beb1b244167d930187bd3c5ea`.
 
-- Base: `main` en `96da25f`; último HEAD consultado: `43feddf`.
-- Propósito: seleccionar por ratón/teclado una de las once **posiciones visuales**, resaltar el marcador y mostrar `slot_id`, etiqueta, línea y estado «Sin jugador asignado».
-- Alcance permitido: cambios locales en `manager_tactics.tscn`, `manager_tactics.gd`, `tactics_field.gd` y `test_manager_tactics.gd`.
-- **No** asigna jugadores, guarda formaciones ni altera la simulación.
-- La revisión inicial de Codex detectó **dos problemas P2**: foco por clic que seleccionaba indebidamente al portero y detalles del panel inaccesibles con teclado en ventanas pequeñas.
-- En `43feddf`, las dos conversaciones de revisión están marcadas **resueltas** y sus autores indicaron correcciones y pruebas de regresión. Los workflows Godot CI, GDScript CI y Export Validation terminaron **success**; el log de GDScript CI de ese HEAD registra **28 suites / 7.327 comprobaciones**.
-- **Esto no equivale a autorizar la fusión ni a una nueva revisión independiente completa.** El PR sigue **abierto y sin fusionar**. Revisar el código actualizado, los casos de entrada real por viewport, el desplazamiento automático del panel y el foco; solicitar autorización **expresa** antes de fusionar.
+- Implementa la selección de cualquiera de las once **posiciones vacías** con ratón o teclado; resalta la posición e informa de su `slot_id`, etiqueta, línea y estado «Sin jugador asignado».
+- Recorre el foco **Selector de formación → Campo → Volver al Despacho**; el cambio de formación limpia la selección. Los tres esquemas siguen siendo 4-4-2, 4-3-3 y 4-2-3-1.
+- Resuelve los dos hallazgos P2 de la revisión inicial: un clic vacío no debe seleccionar al portero y el panel debe desplazar sus detalles para mantenerlos accesibles por teclado.
+- Las pruebas del HEAD revisado usaron entrada real del `Viewport`, geometría en 1000×700 y 800×560, y navegación por teclado.
+- Validación antes de la fusión: **28 suites / 7.327 comprobaciones**; Godot CI, GDScript CI y Export Validation completaron correctamente.
+- No introduce asignación de jugadores, alineaciones persistentes, simulación ni cambios del estado deportivo.
 
-**No desarrollar encima del PR #40 ni dar su funcionalidad por integrada mientras siga abierto.** Si el siguiente agente se hace cargo de ese PR, comenzar inspeccionando su HEAD real y los comentarios.
+**Pendiente:** revisión visual con una ventana real de Godot en un hito de interfaz; las pruebas headless no la reemplazan. **No hay una nueva tarea funcional aprobada:** pedir al usuario el siguiente alcance antes de implementar.
 
 ## 4. Cómo desarrollar y verificar en local
 
@@ -132,8 +131,8 @@ No utilizar como salida una carpeta de datos personales ni sobrescribir archivos
 
 ### Evidencia del último main revisado
 
-- Commit `96da25f` tras integrar PR #39.
-- **28 suites / 7.272 comprobaciones** verificadas en GDScript CI.
+- Commit `76df4ac` tras integrar PR #40.
+- **28 suites / 7.327 comprobaciones** verificadas en GDScript CI del HEAD fusionado.
 - **Godot CI, GDScript CI y Export Validation: success.**
 - No se han validado exhaustivamente con ventana gráfica los popups, la composición visual, el escalado, lectores de interfaz ni gamepad. Las pruebas headless **no** sustituyen esa revisión.
 
@@ -154,7 +153,7 @@ Todo esto complementa, no sustituye, [`AGENTS.md`](../../AGENTS.md).
 
 ## 6. Orden de continuidad sugerido (NO aprobado automáticamente)
 
-**A. Cerrar PR #40.** Revisar última revisión, comprobar que se corrigen los dos P2 y verificar CI. Solo fusionar con permiso explícito.
+**A. PR #40 completado.** Su selección de posiciones está integrada y probada en CI. No repetir este trabajo.
 
 **B. Revisar conjuntamente la interfaz cuando resulte oportuno.** Probar visualmente menú → club → Despacho → Plantilla/Tácticas, cambio entre tres formaciones, enfoque por teclado, clic vacío, seleccionador y panel desplazable. No fingir que estas comprobaciones ya se hicieron.
 
@@ -177,11 +176,11 @@ Todo esto complementa, no sustituye, [`AGENTS.md`](../../AGENTS.md).
 7. `game/scripts/services/season_session_loader.gd` y `season_controller.gd`.
 8. `tests/unit/test_manager_tactics.gd` y las suites relacionadas con lo que vayas a modificar.
 9. `.github/workflows/ci.yml`, `godot-ci.yml`, `export-validation.yml`.
-10. [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40) y su revisión, si continúa abierto.
+10. [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40) y su revisión, ya integrados, como referencia para el manejo de foco y selección.
 
 ## 8. Instrucción breve para un agente local nuevo
 
-> Estás continuando NEOFutbol. Antes de editar, lee AGENTS.md, docs/development/AI_HANDOFF.md y las secciones pertinentes del GDD v1.1. Inspecciona main y los PR abiertos; no confundas el PR #40 con código integrado. No crees datos históricos ni jugadores ficticios adicionales sin una tarea autorizada. Trabaja en una rama por cambio, conserva el aislamiento del pack sintético, ejecuta las pruebas Godot headless y respeta el flujo de aprobación. Pide al usuario la siguiente tarea concreta si no existe una aprobada. Contesta en español.
+> Estás continuando NEOFutbol. Antes de editar, lee AGENTS.md, docs/development/AI_HANDOFF.md y las secciones pertinentes del GDD v1.1. Inspecciona main y los PR abiertos; el PR #40 ya está integrado en main mediante `76df4ac`. No crees datos históricos ni jugadores ficticios adicionales sin una tarea autorizada. Trabaja en una rama por cambio, conserva el aislamiento del pack sintético, ejecuta las pruebas Godot headless y respeta el flujo de aprobación. Pide al usuario la siguiente tarea concreta si no existe una aprobada. Contesta en español.
 
 ---
 

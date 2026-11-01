@@ -10,15 +10,40 @@ El alcance previsto abarca las temporadas de 1982-83 a 2010-11. El desarrollo pr
 
 La arquitectura separará la lógica de negocio y simulación de las escenas de interfaz, y mantendrá diferenciados los datos históricos, los atributos de juego y los recursos visuales mediante identificadores estables.
 
-## Estado actual
+## Estado actual (1 de noviembre de 2026)
 
-El proyecto está en fase de configuración y desarrollo inicial.
+El proyecto dispone de un **prototipo técnico de gestión**, todavía **no es un juego completo ni una temporada histórica jugable**.
 
-La base existente incluye `project.godot` en la raíz, la configuración del renderizador Compatibility, las carpetas básicas del repositorio y la documentación de diseño. Todavía no hay funcionalidades jugables implementadas.
+En `main` (commit de referencia `96da25f`, PR #39) ya funcionan sobre un **pack sintético de desarrollo**: selección de club, Despacho, consulta de Plantilla, clasificación y calendario, y Tácticas con un campo 2D y selector de formaciones de referencia **4-4-2, 4-3-3 y 4-2-3-1**. Las posiciones están vacías y no se guardan ni producen efectos deportivos. Existen además servicios y pruebas de carga, calendario, resultados, clasificación, rondas y estado deportivo; **no todos están integrados en la experiencia del entrenador**.
+
+El siguiente cambio, **selección interactiva de posiciones**, permanece en [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40) y **no está integrado** en la versión de `main` aquí descrita. El primer escenario histórico público sigue incompleto, mientras que los cuatro clubes del pack de desarrollo son ficticios.
+
+**Para retomar el desarrollo:** leer primero [`AGENTS.md`](AGENTS.md) y [**el documento de traspaso para IA**](docs/development/AI_HANDOFF.md). Este último diferencia módulos terminados, pruebas verificadas, riesgos y trabajo pendiente; es una fotografía fechada, no sustituye la inspección del repositorio actual.
+
+La última regresión verificada en `main` para este documento suma **28 suites y 7.272 comprobaciones**, con Godot CI, GDScript CI y Export Validation superados. La validación visual exhaustiva sigue pendiente.
+
+## Ejecutar el prototipo
+
+Con Godot **4.7.2 Stable** disponible como `godot` y desde la raíz del repositorio:
+
+```bash
+godot --path . -- --dev-season-pack
+```
+
+Esto habilita **solo** el escenario sintético de cuatro clubes. El arranque habitual (`godot --path .`) no activa datos de desarrollo.
+
+Para importar y lanzar una suite de pruebas headless:
+
+```bash
+godot --headless --path . --import
+godot --headless --path . --script tests/unit/test_manager_tactics.gd
+```
+
+La CI ejecuta todas las suites de `tests/unit/test_*.gd` y valida las exportaciones pública y de desarrollo. Consultar el [documento de traspaso](docs/development/AI_HANDOFF.md) antes de realizar cambios.
 
 ## Características previstas
 
-Las siguientes características forman parte del diseño y no están implementadas actualmente:
+Las siguientes capacidades describen el alcance previsto. Algunas tienen prototipos o servicios parciales, pero la mayoría requiere integración antes de considerarse jugable:
 
 - Juego para un jugador con funcionamiento prioritariamente sin conexión.
 - Selección de temporadas históricas con reglas y competiciones por edición, centradas en el fútbol español y las competiciones europeas correspondientes.
@@ -75,6 +100,8 @@ Las carpetas establecen la organización del desarrollo; su presencia no implica
 
 - [GDD/TDD v1.1 en Markdown](docs/design/NEOFutbol_GDD_TDD_v1.1.md): especificación principal del proyecto, con el alcance, la arquitectura y los hitos previstos.
 - [Documento original de diseño y desarrollo v1.1](docs/design/NEOFutbol_Documento_Diseno_y_Desarrollo_v1.1.docx): referencia original en formato Word.
+- [Traspaso de desarrollo para IA](docs/development/AI_HANDOFF.md): estado integrado, PR abierto, arquitectura, pruebas y siguientes hitos.
+- [Pack sintético de desarrollo](docs/development/synthetic-season-pack.md): activación, alcance y aislamiento en exportaciones.
 
 ## Contenido público y paquetes privados
 

@@ -1,8 +1,8 @@
 # Traspaso de desarrollo para una IA — NEOFutbol
 
-**Estado comprobado:** 1 de noviembre de 2026.  
-**Rama de referencia integrada:** `main`, commit `96da25f00cd417d2770314c4a74650c11829686b` (PR #39).  
-**Trabajo en curso, NO integrado:** [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40), último HEAD consultado `43feddf755ad09c438d3e4151e75a01599b2fff1`.  
+**Estado comprobado:** 1 de noviembre de 2026.
+**Rama de referencia integrada:** `main`, commit `96da25f00cd417d2770314c4a74650c11829686b` (PR #39).
+**Trabajo en curso, NO integrado:** [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40), último HEAD consultado `43feddf755ad09c438d3e4151e75a01599b2fff1`.
 **Naturaleza:** fotografía de situación y criterios de continuidad, no modificación de los requisitos de producto. Antes de programar, volver a comprobar `main`, PR abiertos y CI.
 
 > **Si eres la IA que retoma el proyecto:** lee primero [`AGENTS.md`](../../AGENTS.md), después este archivo, el [GDD/TDD v1.1](../design/NEOFutbol_GDD_TDD_v1.1.md) en las secciones pertinentes y, por último, el código y las pruebas que vas a cambiar. El GDD define el producto deseado; este documento aclara **qué existe realmente**. No confundas lo diseñado, lo probado y lo integrado.

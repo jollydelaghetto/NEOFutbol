@@ -27,6 +27,8 @@ func _run() -> void:
 	var saves_before = _save_files()
 	await _test_scene_contract_and_all_clubs()
 	await _test_formation_selector()
+	await _test_position_selection_contract()
+	await _test_pointer_position_selection()
 	await _test_responsive_field_geometry()
 	await _test_office_navigation_and_keyboard()
 	await _test_configuration_and_navigation_failures()
@@ -73,6 +75,10 @@ func _test_scene_contract_and_all_clubs() -> void:
 			and view.simulation_notice.text
 			== "La formación no afecta a la simulación deportiva",
 			"el panel informativo no aparenta aplicar la formación para %s" % club_id)
+		_check(view.field.get_selected_position() == null
+			and view.selection_prompt.text == "Selecciona una posición del campo"
+			and not view.selection_details.visible,
+			"%s comienza sin una posición seleccionada" % club_id)
 		_check(positions.size() == 11 and roles == {
 			"goalkeeper": 1, "defender": 4, "midfielder": 4, "forward": 2,
 		}, "distribuye 1-4-4-2 posiciones vacías para %s" % club_id)
@@ -138,6 +144,99 @@ func _test_formation_selector() -> void:
 	await process_frame
 
 
+func _test_position_selection_contract() -> void:
+	var prepared = SessionLoader.new().prepare_session("1982-83", DEV_ROOT)
+	var view = TacticsScene.instantiate()
+	root.add_child(view)
+	await process_frame
+	view.configure(
+		prepared.data.controller, prepared.data.selection,
+		prepared.data.presentation, "dev_bruma_atletico"
+	)
+	var changes: Array = []
+	view.field.selection_changed.connect(func(position): changes.append(position))
+	var positions = view.field.get_reference_positions()
+	var line_names = {
+		"goalkeeper": "Portería", "defender": "Defensa",
+		"midfielder": "Centro del campo", "forward": "Delantera",
+	}
+	for position in positions:
+		var selected = view.field.select_slot(position.slot_id)
+		var current = view.field.get_selected_position()
+		_check(selected.ok and current == position
+			and view.selected_slot_value.text == position.slot_id
+			and view.selected_label_value.text == position.label,
+			"selecciona %s por su slot_id y presenta su identidad" % position.slot_id)
+		_check(view.selected_line_value.text == line_names[position.role]
+			and view.selected_status_value.text == "Sin jugador asignado"
+			and view.selection_details.visible and not current.has("player_id"),
+			"presenta la línea y el estado vacío de %s" % position.slot_id)
+	_check(changes.size() == 11,
+		"cada una de las once posiciones produce un único cambio de selección")
+	view.field.select_slot(positions[-1].slot_id)
+	_check(changes.size() == 11,
+		"seleccionar de nuevo la posición activa no duplica el evento")
+	var defensive = view.field.get_selected_position()
+	defensive.label = "ALTERADO"
+	defensive.point = Vector2(9.0, 9.0)
+	_check(view.field.get_selected_position().label == positions[-1].label
+		and view.field.get_selected_position().point == positions[-1].point,
+		"la consulta de selección devuelve una copia defensiva")
+	var previous = view.field.get_selected_position()
+	var rejected = view.field.select_slot("unknown_slot")
+	_check(not rejected.ok and rejected.errors[0].code == "unknown_tactical_position"
+		and rejected.errors[0].slot_id == "unknown_slot"
+		and view.field.get_selected_position() == previous,
+		"un slot_id desconocido conserva la selección y devuelve un diagnóstico")
+	view.field.clear_selection()
+	_check(view.field.get_selected_position() == null
+		and view.selection_prompt.text == "Selecciona una posición del campo"
+		and not view.selection_details.visible,
+		"limpiar la selección restaura el estado inicial del panel")
+	view.field.select_slot("442_mid_2")
+	_select_option(view, "4-3-3")
+	_check(view.field.get_selected_position() == null
+		and view.get_context().formation == "4-3-3"
+		and view.selection_prompt.text == "Selecciona una posición del campo"
+		and view.directed_club_value.text == "Bruma Atlético"
+		and view.assigned_value.text == "0",
+		"cambiar de formación limpia la selección y conserva el contexto deportivo")
+	view.queue_free()
+	await process_frame
+
+
+func _test_pointer_position_selection() -> void:
+	var prepared = SessionLoader.new().prepare_session("1982-83", DEV_ROOT)
+	var view = TacticsScene.instantiate()
+	root.add_child(view)
+	view.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	await process_frame
+	view.configure(
+		prepared.data.controller, prepared.data.selection,
+		prepared.data.presentation, "dev_duna_deportivo"
+	)
+	for viewport_size in [Vector2(1000, 700), Vector2(800, 560)]:
+		view.size = viewport_size
+		await process_frame
+		var markers = view.field.get_marker_rects()
+		_click_field(view.field, markers[3].rect.get_center())
+		_check(view.field.get_selected_position().slot_id == markers[3].slot_id
+			and view.field.has_focus(),
+			"el centro real del marcador se selecciona con ratón en %s" % viewport_size)
+		var selected_before = view.field.get_selected_position()
+		_click_field(view.field, _empty_field_point(view.field))
+		_click_field(view.field, Vector2(1.0, 1.0))
+		_click_field(view.field, markers[5].rect.position)
+		_check(view.field.get_selected_position() == selected_before,
+			"los clics vacíos, fuera del terreno o fuera del radio conservan la selección en %s"
+			% viewport_size)
+		_click_field(view.field, markers[8].rect.get_center())
+		_check(view.field.get_selected_position().slot_id == markers[8].slot_id,
+			"un segundo clic sustituye la única selección activa en %s" % viewport_size)
+	view.queue_free()
+	await process_frame
+
+
 func _test_responsive_field_geometry() -> void:
 	var prepared = SessionLoader.new().prepare_session("1982-83", DEV_ROOT)
 	var view = TacticsScene.instantiate()
@@ -163,9 +262,9 @@ func _test_responsive_field_geometry() -> void:
 				"%s evita solapamientos en %s" % [formation_id, viewport_size])
 			_check(absf(view.field.size.x / view.field.size.y - 1.6) < 0.02,
 				"%s conserva la proporción del campo en %s" % [formation_id, viewport_size])
-	_check(view.field.focus_mode == Control.FOCUS_NONE
-		and view.field.mouse_filter == Control.MOUSE_FILTER_IGNORE,
-		"el dibujo no interfiere con el foco ni la entrada")
+	_check(view.field.focus_mode == Control.FOCUS_ALL
+		and view.field.mouse_filter == Control.MOUSE_FILTER_STOP,
+		"el campo acepta foco y consume su propia entrada de interfaz")
 	view.queue_free()
 	await process_frame
 
@@ -207,11 +306,39 @@ func _test_office_navigation_and_keyboard() -> void:
 		== "4-3-3",
 		"el teclado cambia la formación sin depender del índice como ID")
 	await _press_key(KEY_TAB)
+	_check(_focus_owner() == tactics.field and tactics.field.has_focus()
+		and tactics.field.get_selected_position().slot_id == "433_gk",
+		"Tab lleva el foco visible al campo y selecciona el portero de forma determinista")
+	var formation_before_arrows = tactics.get_context().formation
+	var arrow_slots: Array[String] = []
+	for keycode in [KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_LEFT]:
+		await _press_key(keycode)
+		arrow_slots.append(tactics.field.get_selected_position().slot_id)
+	_check(arrow_slots[0] != "433_gk" and arrow_slots[1] != arrow_slots[0]
+		and arrow_slots[2] != arrow_slots[1] and arrow_slots[3] != arrow_slots[2],
+		"las cuatro flechas recorren posiciones de manera espacial y determinista")
+	_check(tactics.get_context().formation == formation_before_arrows
+		and _focus_owner() == tactics.field,
+		"las flechas del campo no cambian la formación ni transfieren el foco")
+	var confirmations: Array = []
+	var changes: Array = []
+	tactics.field.position_confirmed.connect(func(position): confirmations.append(position))
+	tactics.field.selection_changed.connect(func(position): changes.append(position))
+	var active_before_enter = tactics.field.get_selected_position()
+	await _press_key(KEY_ENTER)
+	_check(confirmations.size() == 1 and confirmations[0] == active_before_enter
+		and changes.is_empty() and _focus_owner() == tactics.field,
+		"Enter confirma una vez la posición visual sin alterar la selección")
+	await _press_key(KEY_TAB)
 	_check(_focus_owner() == tactics.back_button,
-		"Tab avanza del selector al retorno")
+		"Tab avanza del campo al retorno")
+	await _press_key(KEY_TAB, true)
+	_check(_focus_owner() == tactics.field,
+		"Mayús+Tab vuelve del retorno al campo")
 	await _press_key(KEY_TAB, true)
 	_check(_focus_owner() == tactics.formation_selector,
-		"Mayús+Tab vuelve al selector")
+		"Mayús+Tab vuelve del campo al selector")
+	await _press_key(KEY_TAB)
 	await _press_key(KEY_TAB)
 	await _press_key(KEY_ENTER)
 	await process_frame
@@ -228,8 +355,9 @@ func _test_office_navigation_and_keyboard() -> void:
 	await process_frame
 	await process_frame
 	_check(menu._tactics_view.get_context().formation == "4-4-2"
-		and menu._tactics_view.formation_selector.selected == 0,
-		"una vista nueva reinicia la referencia a 4-4-2")
+		and menu._tactics_view.formation_selector.selected == 0
+		and menu._tactics_view.field.get_selected_position() == null,
+		"una vista nueva reinicia 4-4-2 y la ausencia de selección")
 	menu._tactics_view.back_button.pressed.emit()
 	await process_frame
 	office = menu._office_view
@@ -276,15 +404,18 @@ func _test_configuration_and_navigation_failures() -> void:
 	)
 	var context_before = view.get_context()
 	view.select_formation("4-3-3")
+	view.field.select_slot("433_mid_2")
 	var formation_before = view.get_context().formation
+	var position_before = view.field.get_selected_position()
 	var selector_before = view.formation_selector.selected
 	var rejected_formation = view.select_formation("3-3-4-unknown")
 	_check(not rejected_formation.ok
 		and rejected_formation.errors[0].code == "unknown_reference_formation"
 		and view.get_context().formation == formation_before
 		and view.field.get_formation_id() == formation_before
+		and view.field.get_selected_position() == position_before
 		and view.formation_selector.selected == selector_before,
-		"una formación desconocida conserva campo, selector y referencia válidos")
+		"una formación desconocida conserva campo, selección y referencia válidos")
 	context_before = view.get_context()
 	var wrong_selection = prepared.data.selection.duplicate(true)
 	wrong_selection.competition_id = "other_competition"
@@ -393,6 +524,32 @@ func _select_option(view, formation_id: String) -> void:
 			view.formation_selector.select(index)
 			view.formation_selector.item_selected.emit(index)
 			return
+
+
+func _click_field(field: Control, local_position: Vector2) -> void:
+	var event = InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = true
+	event.position = local_position
+	field._gui_input(event)
+
+
+func _empty_field_point(field) -> Vector2:
+	var pitch: Rect2 = field.get_pitch_rect()
+	var markers: Array[Dictionary] = field.get_marker_rects()
+	for x_step in range(1, 10):
+		for y_step in range(1, 10):
+			var point = pitch.position + Vector2(
+				pitch.size.x * float(x_step) / 10.0,
+				pitch.size.y * float(y_step) / 10.0
+			)
+			var outside_markers = markers.all(func(marker):
+				var radius: float = marker.rect.size.x * 0.5
+				return marker.rect.get_center().distance_to(point) > radius
+			)
+			if outside_markers:
+				return point
+	return pitch.get_center()
 
 
 func _markers_overlap(markers: Array[Dictionary]) -> bool:

@@ -14,13 +14,13 @@ La arquitectura separará la lógica de negocio y simulación de las escenas de 
 
 El proyecto dispone de un **prototipo técnico de gestión**, todavía **no es un juego completo ni una temporada histórica jugable**.
 
-En `main` (commit de referencia `96da25f`, PR #39) ya funcionan sobre un **pack sintético de desarrollo**: selección de club, Despacho, consulta de Plantilla, clasificación y calendario, y Tácticas con un campo 2D y selector de formaciones de referencia **4-4-2, 4-3-3 y 4-2-3-1**. Las posiciones están vacías y no se guardan ni producen efectos deportivos. Existen además servicios y pruebas de carga, calendario, resultados, clasificación, rondas y estado deportivo; **no todos están integrados en la experiencia del entrenador**.
+En `main` (commit de referencia `76df4ac`, PR #40) ya funcionan sobre un **pack sintético de desarrollo**: selección de club, Despacho, consulta de Plantilla, clasificación y calendario, y Tácticas con un campo 2D, selector de formaciones de referencia **4-4-2, 4-3-3 y 4-2-3-1**, y **selección de posiciones con ratón y teclado**. Las posiciones están vacías y ni las formaciones ni las selecciones se guardan o producen efectos deportivos. Existen además servicios y pruebas de carga, calendario, resultados, clasificación, rondas y estado deportivo; **no todos están integrados en la experiencia del entrenador**.
 
-El siguiente cambio, **selección interactiva de posiciones**, permanece en [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40) y **no está integrado** en la versión de `main` aquí descrita. El primer escenario histórico público sigue incompleto, mientras que los cuatro clubes del pack de desarrollo son ficticios.
+La selección interactiva de posiciones quedó integrada con el [PR #40](https://github.com/jollydelaghetto/NEOFutbol/pull/40). La **asignación de jugadores** continúa pendiente. El primer escenario histórico público sigue incompleto, mientras que los cuatro clubes del pack de desarrollo son ficticios.
 
 **Para retomar el desarrollo:** leer primero [`AGENTS.md`](AGENTS.md) y [**el documento de traspaso para IA**](docs/development/AI_HANDOFF.md). Este último diferencia módulos terminados, pruebas verificadas, riesgos y trabajo pendiente; es una fotografía fechada, no sustituye la inspección del repositorio actual.
 
-La última regresión verificada en `main` para este documento suma **28 suites y 7.272 comprobaciones**, con Godot CI, GDScript CI y Export Validation superados. La validación visual exhaustiva sigue pendiente.
+La última regresión verificada en `main` para este documento suma **28 suites y 7.327 comprobaciones**, con Godot CI, GDScript CI y Export Validation superados. La validación visual exhaustiva sigue pendiente.
 
 ## Ejecutar el prototipo
 
@@ -100,7 +100,7 @@ Las carpetas establecen la organización del desarrollo; su presencia no implica
 
 - [GDD/TDD v1.1 en Markdown](docs/design/NEOFutbol_GDD_TDD_v1.1.md): especificación principal del proyecto, con el alcance, la arquitectura y los hitos previstos.
 - [Documento original de diseño y desarrollo v1.1](docs/design/NEOFutbol_Documento_Diseno_y_Desarrollo_v1.1.docx): referencia original en formato Word.
-- [Traspaso de desarrollo para IA](docs/development/AI_HANDOFF.md): estado integrado, PR abierto, arquitectura, pruebas y siguientes hitos.
+- [Traspaso de desarrollo para IA](docs/development/AI_HANDOFF.md): estado integrado, historial de PR, arquitectura, pruebas y siguientes hitos.
 - [Pack sintético de desarrollo](docs/development/synthetic-season-pack.md): activación, alcance y aislamiento en exportaciones.
 
 ## Contenido público y paquetes privados

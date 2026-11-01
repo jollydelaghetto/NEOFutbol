@@ -2,6 +2,12 @@
 
 NEOFutbol es un manager de fútbol histórico desarrollado en Godot 4.7.2 con GDScript, destinado inicialmente a Linux.
 
+## Lectura inicial obligatoria para un agente nuevo
+
+Antes de modificar código, leer **[`docs/development/AI_HANDOFF.md`](docs/development/AI_HANDOFF.md)**. Este documento describe el último estado verificado de `main`, las capacidades realmente implementadas, los PR que estaban abiertos, la cobertura de pruebas, el enfoque de desarrollo y los siguientes hitos propuestos. **Es una fotografía fechada**: contrastar sus hashes y afirmaciones con GitHub y el árbol de trabajo antes de asumirlas como actuales.
+
+El [GDD/TDD v1.1](docs/design/NEOFutbol_GDD_TDD_v1.1.md) es la especificación del producto, **no un registro de funciones ya implementadas**. Mantener distintos los estados `integrado en main`, `en PR`, `probado headless`, `revisado visualmente` y `propuesto`. Cuando cambie el estado del proyecto, actualizar el traspaso en la misma tarea documental o funcional si está dentro del alcance aprobado.
+
 ## Especificación y arquitectura
 
 1. Utilizar `docs/design/NEOFutbol_GDD_TDD_v1.1.md` como especificación principal del proyecto y consultar sus secciones relevantes. El archivo `docs/design/NEOFutbol_Documento_Diseno_y_Desarrollo_v1.1.docx` es el original de referencia. Ante ambigüedades que afecten al diseño, seguridad, licencias o compatibilidad, consultar al usuario.

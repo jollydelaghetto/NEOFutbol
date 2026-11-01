@@ -100,7 +100,7 @@ Las carpetas establecen la organización del desarrollo; su presencia no implica
 
 - [GDD/TDD v1.1 en Markdown](docs/design/NEOFutbol_GDD_TDD_v1.1.md): especificación principal del proyecto, con el alcance, la arquitectura y los hitos previstos.
 - [Documento original de diseño y desarrollo v1.1](docs/design/NEOFutbol_Documento_Diseno_y_Desarrollo_v1.1.docx): referencia original en formato Word.
-- [Traspaso de desarrollo para IA](docs/development/AI_HANDOFF.md): estado integrado, PR abierto, arquitectura, pruebas y siguientes hitos.
+- [Traspaso de desarrollo para IA](docs/development/AI_HANDOFF.md): estado integrado, historial de PR, arquitectura, pruebas y siguientes hitos.
 - [Pack sintético de desarrollo](docs/development/synthetic-season-pack.md): activación, alcance y aislamiento en exportaciones.
 
 ## Contenido público y paquetes privados

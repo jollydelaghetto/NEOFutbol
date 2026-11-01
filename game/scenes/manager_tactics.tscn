@@ -151,7 +151,8 @@ alignment_vertical = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(400, 250)
 layout_mode = 2
-mouse_filter = 2
+mouse_filter = 0
+focus_mode = 2
 script = ExtResource("2_field")
 
 [node name="InfoPanel" type="PanelContainer" parent="Margin/Page/Content"]
@@ -160,62 +161,128 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StylePanel")
 
-[node name="Info" type="VBoxContainer" parent="Margin/Page/Content/InfoPanel"]
+[node name="InfoScroll" type="ScrollContainer" parent="Margin/Page/Content/InfoPanel"]
+unique_name_in_owner = true
 layout_mode = 2
+focus_mode = 0
+horizontal_scroll_mode = 0
+
+[node name="Info" type="VBoxContainer" parent="Margin/Page/Content/InfoPanel/InfoScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="InfoTitle" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="InfoTitle" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
 theme_override_font_sizes/font_size = 18
 text = "Referencia técnica"
 
-[node name="ClubCaption" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="ClubCaption" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 layout_mode = 2
 text = "Club dirigido"
 
-[node name="DirectedClubValue" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="DirectedClubValue" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.86, 0.93, 1)
 autowrap_mode = 2
 
-[node name="FormationCaption" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="FormationCaption" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 layout_mode = 2
 text = "Formación visualizada"
 
-[node name="FormationValue" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="FormationValue" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "4-4-2"
 
-[node name="AssignedCaption" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="AssignedCaption" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 layout_mode = 2
 text = "Jugadores asignados"
 
-[node name="AssignedValue" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="AssignedValue" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "0"
 
-[node name="StateCaption" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="StateCaption" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 layout_mode = 2
 text = "Estado"
 
-[node name="StateValue" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="StateValue" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.78, 0.25, 1)
 text = "Prototipo de visualización táctica"
 autowrap_mode = 2
 
-[node name="SimulationNotice" type="Label" parent="Margin/Page/Content/InfoPanel/Info"]
+[node name="SimulationNotice" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
 theme_override_colors/font_color = Color(0.72, 0.79, 0.86, 1)
 text = "La formación no afecta a la simulación deportiva"
 vertical_alignment = 2
+autowrap_mode = 2
+
+[node name="SelectionSeparator" type="HSeparator" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
+layout_mode = 2
+
+[node name="SelectionTitle" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 18
+text = "Posición seleccionada"
+
+[node name="SelectionPrompt" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Selecciona una posición del campo"
+autowrap_mode = 2
+
+[node name="SelectionDetails" type="VBoxContainer" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="LabelCaption" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info/SelectionDetails"]
+layout_mode = 2
+text = "Etiqueta"
+
+[node name="SelectedLabelValue" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info/SelectionDetails"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.86, 0.93, 1)
+
+[node name="SlotCaption" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info/SelectionDetails"]
+layout_mode = 2
+text = "Identificador"
+
+[node name="SelectedSlotValue" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info/SelectionDetails"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.86, 0.93, 1)
+autowrap_mode = 2
+
+[node name="LineCaption" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info/SelectionDetails"]
+layout_mode = 2
+text = "Línea"
+
+[node name="SelectedLineValue" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info/SelectionDetails"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.86, 0.93, 1)
+
+[node name="SelectedStatusCaption" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info/SelectionDetails"]
+layout_mode = 2
+text = "Estado"
+
+[node name="SelectedStatusValue" type="Label" parent="Margin/Page/Content/InfoPanel/InfoScroll/Info/SelectionDetails"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.78, 0.25, 1)
+text = "Sin jugador asignado"
 autowrap_mode = 2
 
 [node name="Footer" type="HBoxContainer" parent="Margin/Page"]

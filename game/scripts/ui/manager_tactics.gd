@@ -19,6 +19,13 @@ signal back_requested
 @onready var assigned_value: Label = %AssignedValue
 @onready var state_value: Label = %StateValue
 @onready var simulation_notice: Label = %SimulationNotice
+@onready var info_scroll: ScrollContainer = %InfoScroll
+@onready var selection_prompt: Label = %SelectionPrompt
+@onready var selection_details: VBoxContainer = %SelectionDetails
+@onready var selected_label_value: Label = %SelectedLabelValue
+@onready var selected_slot_value: Label = %SelectedSlotValue
+@onready var selected_line_value: Label = %SelectedLineValue
+@onready var selected_status_value: Label = %SelectedStatusValue
 @onready var field: TacticsField = %TacticsField
 @onready var error_label: Label = %ErrorLabel
 @onready var back_button: Button = %BackButton
@@ -27,16 +34,21 @@ var _selection: Dictionary = {}
 var _presentation: Dictionary = {}
 var _club_id := ""
 var _formation_id := DEFAULT_FORMATION_ID
+var _selection_render_revision := 0
 
 
 func _ready() -> void:
 	_populate_formation_selector()
 	formation_selector.item_selected.connect(_on_formation_selected)
+	field.selection_changed.connect(_on_position_selection_changed)
 	back_button.pressed.connect(func(): back_requested.emit())
-	formation_selector.focus_next = formation_selector.get_path_to(back_button)
+	formation_selector.focus_next = formation_selector.get_path_to(field)
 	formation_selector.focus_previous = formation_selector.get_path_to(back_button)
 	back_button.focus_next = back_button.get_path_to(formation_selector)
-	back_button.focus_previous = back_button.get_path_to(formation_selector)
+	back_button.focus_previous = back_button.get_path_to(field)
+	field.focus_next = field.get_path_to(back_button)
+	field.focus_previous = field.get_path_to(formation_selector)
+	_render_selected_position(null)
 
 
 ## Configura una representación visual de solo lectura. La formación y sus
@@ -80,6 +92,7 @@ func configure(controller: Controller, selection: Dictionary,
 	_presentation = presentation.duplicate(true)
 	_club_id = club_id
 	_render()
+	field.clear_selection()
 	var selected = select_formation(DEFAULT_FORMATION_ID)
 	if not selected.ok:
 		return selected
@@ -133,6 +146,7 @@ func select_formation(formation_id: String) -> Dictionary:
 		"Formación de referencia %s · sin jugadores asignados" % _formation_id
 	)
 	formation_value.text = _formation_id
+	_render_selected_position(field.get_selected_position())
 	_clear_error()
 	return {
 		"ok": true,
@@ -166,6 +180,61 @@ func _on_formation_selected(index: int) -> void:
 	if index < 0 or index >= formation_selector.item_count:
 		return
 	select_formation(formation_selector.get_item_metadata(index))
+
+
+func _on_position_selection_changed(position: Variant) -> void:
+	_render_selected_position(position)
+
+
+func _render_selected_position(position: Variant) -> void:
+	_selection_render_revision += 1
+	var revision = _selection_render_revision
+	if position == null:
+		selection_prompt.text = "Selecciona una posición del campo"
+		selection_prompt.visible = true
+		selection_details.visible = false
+		_reset_info_scroll(revision)
+		return
+	selection_prompt.text = "Posición seleccionada"
+	selection_prompt.visible = true
+	selection_details.visible = true
+	selected_label_value.text = position.label
+	selected_slot_value.text = position.slot_id
+	selected_line_value.text = _line_name(position.role)
+	selected_status_value.text = "Sin jugador asignado"
+	_keep_selection_details_visible(revision)
+
+
+func _keep_selection_details_visible(revision: int) -> void:
+	# La visibilidad cambia el tamaño mínimo del contenido. Esperar al siguiente
+	# frame permite que los contenedores actualicen el límite de desplazamiento.
+	await get_tree().process_frame
+	if revision == _selection_render_revision and is_instance_valid(selection_details):
+		# Los detalles son el último bloque del contenido. El valor se limita al
+		# máximo real, dejando el bloque completo dentro del área visible.
+		info_scroll.scroll_vertical = ceili(info_scroll.get_v_scroll_bar().max_value)
+
+
+func _reset_info_scroll(revision: int) -> void:
+	call_deferred("_apply_info_scroll_reset", revision)
+
+
+func _apply_info_scroll_reset(revision: int) -> void:
+	if revision == _selection_render_revision and is_instance_valid(info_scroll):
+		info_scroll.scroll_vertical = 0
+
+
+func _line_name(role: String) -> String:
+	match role:
+		"goalkeeper":
+			return "Portería"
+		"defender":
+			return "Defensa"
+		"midfielder":
+			return "Centro del campo"
+		"forward":
+			return "Delantera"
+	return ""
 
 
 func _valid_display_name(value: Variant) -> bool:
